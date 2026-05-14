@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, ArrowDownToLine, SlidersHorizontal, Package, PackageOpen, Warehouse, Settings, LogOut, Users, Eye } from 'lucide-react'
+import { LayoutDashboard, ArrowDownToLine, SlidersHorizontal, Package, PackageOpen, Warehouse, Settings, LogOut, Users } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useSeason } from '@/lib/context/SeasonContext'
 import { useRouter } from 'next/navigation'
@@ -17,7 +17,6 @@ const navItems = [
   { href: '/malay',      label: 'מכירות',        icon: Package },
   { href: '/suppliers',  label: 'ספקים',         icon: Users },
   { href: '/settings',      label: 'הגדרות',        icon: Settings },
-  { href: '/card-preview',  label: 'תצוגת כרטיס',  icon: Eye },
 ]
 
 export function Sidebar({ onClose }: { onClose?: () => void }) {
