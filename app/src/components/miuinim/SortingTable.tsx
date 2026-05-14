@@ -1,8 +1,22 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import type { CSSProperties } from 'react'
+import { toast } from 'sonner'
 import type { SortingEvent, Supplier, Field, ReceivingOrder, Grade } from '@/lib/types'
+
+// ── exported type used by page.tsx ─────────────────────────────────────────
+export interface ImportedSortingRow {
+  sort_serial?: number
+  field_name: string
+  freshness_type: string
+  sorted_date: string    // ISO yyyy-mm-dd
+  supplier_name: string
+  warehouse_code: string
+  length_type: string
+  status_type: string
+  quantities: { grade: string; quantity: number }[]
+}
 
 interface Props {
   events: SortingEvent[]
@@ -10,6 +24,7 @@ interface Props {
   fields: Field[]
   receivingOrders: ReceivingOrder[]
   grades: Grade[]
+  onImportRows?: (rows: ImportedSortingRow[]) => Promise<{ success: number; errors: string[] }>
 }
 
 type SortDir = 'asc' | 'desc'
@@ -42,12 +57,13 @@ interface RowData {
 }
 
 const FIXED_COLS: { key: string; label: string; filterable: boolean }[] = [
-  { key: 'field',     label: 'שדה/חלקה', filterable: true  },
-  { key: 'freshness', label: 'מיון',      filterable: true  },
-  { key: 'date',      label: 'תאריך',     filterable: false },
-  { key: 'supplier',  label: 'ספק',       filterable: true  },
-  { key: 'kabala',    label: 'קבלה',      filterable: false },
-  { key: 'length',    label: 'אורך',      filterable: true  },
+  { key: 'serial',    label: 'מס׳ מיון',  filterable: false },
+  { key: 'field',     label: 'שדה/חלקה',  filterable: true  },
+  { key: 'freshness', label: 'מיון',       filterable: true  },
+  { key: 'date',      label: 'תאריך',      filterable: true  },
+  { key: 'supplier',  label: 'ספק',        filterable: true  },
+  { key: 'kabala',    label: 'קבלה',       filterable: true  },
+  { key: 'length',    label: 'אורך',       filterable: true  },
 ]
 const TAIL_COLS: { key: string; label: string; filterable: boolean }[] = [
   { key: 'total',  label: 'סה"כ',  filterable: false },
@@ -56,21 +72,27 @@ const TAIL_COLS: { key: string; label: string; filterable: boolean }[] = [
 
 function getColValue(colKey: string, row: RowData): string {
   switch (colKey) {
+    case 'serial':    return String(row.event.sort_serial)
     case 'field':     return row.field
     case 'freshness': return row.event.freshness_type
+    case 'date':      return fmtDate(row.event.sorted_date)
     case 'supplier':  return row.supplier
+    case 'kabala':    return row.kabala
     case 'length':    return row.event.length_type
     case 'status':    return statusLabel(row.event.status_type)
     default:          return ''
   }
 }
 
-export function SortingTable({ events, suppliers, fields, receivingOrders, grades }: Props) {
+export function SortingTable({ events, suppliers, fields, receivingOrders, grades, onImportRows }: Props) {
   const [sortCol, setSortCol] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [colFilters, setColFilters] = useState<Record<string, string[]>>({})
   const [openFilter, setOpenFilter] = useState<{ key: string; x: number; y: number } | null>(null)
   const [filterSearch, setFilterSearch] = useState('')
+  const [importPreview, setImportPreview] = useState<{ rows: ImportedSortingRow[]; filename: string } | null>(null)
+  const [importing, setImporting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // grades sorted by group then sort_order
   const sortedGrades = useMemo(() =>
@@ -99,7 +121,7 @@ export function SortingTable({ events, suppliers, fields, receivingOrders, grade
     })
   }
 
-  // ── base rows (no sort/filter applied) ────────────────────────────────────
+  // ── base rows ──────────────────────────────────────────────────────────────
   const baseRows = useMemo<RowData[]>(() =>
     events.map(e => ({
       event:    e,
@@ -112,7 +134,6 @@ export function SortingTable({ events, suppliers, fields, receivingOrders, grade
     })),
   [events, fields, suppliers, receivingOrders])
 
-  // unique values per filterable column (from unfiltered base)
   function getUniqueVals(colKey: string): string[] {
     const vals = new Set<string>()
     for (const row of baseRows) vals.add(getColValue(colKey, row))
@@ -121,20 +142,18 @@ export function SortingTable({ events, suppliers, fields, receivingOrders, grade
 
   // ── filtered + sorted rows ─────────────────────────────────────────────────
   const rows = useMemo<RowData[]>(() => {
-    let filtered = baseRows.filter(row =>
+    const filtered = baseRows.filter(row =>
       Object.entries(colFilters).every(([key, vals]) => {
         if (!vals.length) return true
         return vals.includes(getColValue(key, row))
       })
     )
-
     if (!sortCol) return filtered
-
     return [...filtered].sort((a, b) => {
       let av: string | number | null = null
       let bv: string | number | null = null
-
-      if      (sortCol === 'field')     { av = a.field;                bv = b.field                }
+      if      (sortCol === 'serial')    { av = a.event.sort_serial;    bv = b.event.sort_serial    }
+      else if (sortCol === 'field')     { av = a.field;                bv = b.field                }
       else if (sortCol === 'freshness') { av = a.event.freshness_type; bv = b.event.freshness_type }
       else if (sortCol === 'date')      { av = a.event.sorted_date;    bv = b.event.sorted_date    }
       else if (sortCol === 'supplier')  { av = a.supplier;             bv = b.supplier             }
@@ -150,7 +169,6 @@ export function SortingTable({ events, suppliers, fields, receivingOrders, grade
           bv = b.event.sorting_quantities?.find(q => q.grade === g.name)?.quantity ?? 0
         }
       }
-
       if (av == null && bv == null) return 0
       if (av == null) return 1
       if (bv == null) return -1
@@ -173,7 +191,145 @@ export function SortingTable({ events, suppliers, fields, receivingOrders, grade
     return { gradeMap, grandTotal }
   }, [rows, sortedGrades])
 
-  const activeFilterCount = Object.keys(colFilters).length
+  // ── export ─────────────────────────────────────────────────────────────────
+  async function handleExport() {
+    const XLSX = await import('xlsx')
+
+    const headers = [
+      'מס׳ מיון', 'שדה/חלקה', 'מיון', 'תאריך', 'ספק', 'קבלה', 'אורך',
+      ...sortedGrades.map(g => g.name),
+      'סה"כ', 'סטטוס',
+    ]
+
+    const dataRows = rows.map(({ event: e, field, supplier, kabala, total }) => [
+      e.sort_serial,
+      field,
+      e.freshness_type,
+      fmtDate(e.sorted_date),
+      supplier,
+      kabala,
+      e.length_type,
+      ...sortedGrades.map(g => e.sorting_quantities?.find(q => q.grade === g.name)?.quantity ?? 0),
+      total,
+      statusLabel(e.status_type),
+    ])
+
+    const totalsRow = [
+      `סה"כ (${rows.length})`, '', '', '', '', '', '',
+      ...sortedGrades.map(g => totals.gradeMap[g.name] ?? 0),
+      totals.grandTotal, '',
+    ]
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...dataRows, totalsRow])
+
+    // column widths
+    ws['!cols'] = [
+      { wch: 10 }, { wch: 16 }, { wch: 8 }, { wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 8 },
+      ...sortedGrades.map(() => ({ wch: 8 })),
+      { wch: 8 }, { wch: 12 },
+    ]
+
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'מיונים')
+    const dateStr = new Date().toISOString().split('T')[0]
+    XLSX.writeFile(wb, `מיונים_${dateStr}.xlsx`)
+  }
+
+  // ── import parsing ─────────────────────────────────────────────────────────
+  async function handleImportFile(file: File) {
+    try {
+      const XLSX = await import('xlsx')
+      const buffer = await file.arrayBuffer()
+      const wb = XLSX.read(new Uint8Array(buffer), { type: 'array', cellDates: true })
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1 })
+
+      if (raw.length < 2) { toast.error('הקובץ ריק או לא תקין'); return }
+
+      const headers = (raw[0] as unknown[]).map(h => String(h ?? ''))
+      const idxOf = (name: string) => headers.indexOf(name)
+
+      const iSerial    = idxOf('מס׳ מיון')
+      const iField     = idxOf('שדה/חלקה')
+      const iFreshness = idxOf('מיון')
+      const iDate      = idxOf('תאריך')
+      const iSupplier  = idxOf('ספק')
+      const iKabala    = idxOf('קבלה')
+      const iLength    = idxOf('אורך')
+      const iStatus    = idxOf('סטטוס')
+      const gradeIdxMap = sortedGrades.map(g => ({ grade: g.name, idx: idxOf(g.name) }))
+
+      const parsedRows: ImportedSortingRow[] = []
+
+      for (let i = 1; i < raw.length; i++) {
+        const row = raw[i] as unknown[]
+        if (!row || row.length === 0) continue
+        if (String(row[0] ?? '').startsWith('סה"כ')) continue
+
+        // parse date
+        let sortedDate = ''
+        const rawDate = iDate >= 0 ? row[iDate] : undefined
+        if (rawDate instanceof Date) {
+          sortedDate = rawDate.toISOString().split('T')[0]
+        } else if (typeof rawDate === 'string' && rawDate.includes('/')) {
+          const [dd, mm, yyyy] = rawDate.split('/')
+          sortedDate = `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`
+        }
+        if (!sortedDate) continue
+
+        const freshness = isFreshness(String(isFreshness ? row[iFreshness] ?? '' : ''))
+          ? String(row[iFreshness] ?? '')
+          : ''
+        const length = String(iFreshness >= 0 ? (row[iLength] ?? '') : '')
+        if (!freshness || !length) continue
+
+        const quantities = gradeIdxMap
+          .filter(gi => gi.idx >= 0)
+          .flatMap(gi => {
+            const qty = Number(row[gi.idx])
+            return isNaN(qty) || qty <= 0 ? [] : [{ grade: gi.grade, quantity: qty }]
+          })
+
+        const kabalaVal = iKabala >= 0 ? String(row[iKabala] ?? '') : ''
+        parsedRows.push({
+          sort_serial: iSerial >= 0 ? Number(row[iSerial]) || undefined : undefined,
+          field_name: iField >= 0 ? String(row[iField] ?? '').replace('—', '').trim() : '',
+          freshness_type: freshness,
+          sorted_date: sortedDate,
+          supplier_name: iSupplier >= 0 ? String(row[iSupplier] ?? '').replace('—', '').trim() : '',
+          warehouse_code: kabalaVal === '—' ? '' : kabalaVal.trim(),
+          length_type: length,
+          status_type: iStatus >= 0 ? String(row[iStatus] ?? 'בסיסי') : 'בסיסי',
+          quantities,
+        })
+      }
+
+      if (parsedRows.length === 0) { toast.error('לא נמצאו שורות תקינות לייבוא'); return }
+      setImportPreview({ rows: parsedRows, filename: file.name })
+    } catch (err) {
+      toast.error('שגיאה בקריאת הקובץ: ' + (err instanceof Error ? err.message : String(err)))
+    }
+  }
+
+  function isFreshness(val: string) {
+    return val === 'טרי' || val === 'מוקדם'
+  }
+
+  async function confirmImport() {
+    if (!importPreview || !onImportRows) return
+    setImporting(true)
+    try {
+      const { success, errors } = await onImportRows(importPreview.rows)
+      if (errors.length > 0) {
+        toast.warning(`יובאו ${success} מיונים. שגיאות: ${errors.slice(0, 3).join(', ')}${errors.length > 3 ? '...' : ''}`)
+      } else {
+        toast.success(`${success} מיונים יובאו בהצלחה`)
+      }
+      setImportPreview(null)
+    } finally {
+      setImporting(false)
+    }
+  }
 
   // ── styles ─────────────────────────────────────────────────────────────────
   const thBase: CSSProperties = {
@@ -221,6 +377,7 @@ export function SortingTable({ events, suppliers, fields, receivingOrders, grade
   }
 
   const tdStyle: CSSProperties = { padding: '7px 10px', borderBottom: '0.5px solid #e5e7eb', whiteSpace: 'nowrap' }
+  const activeFilterCount = Object.keys(colFilters).length
 
   if (events.length === 0) {
     return <p style={{ padding: '24px 0', textAlign: 'center', color: '#9ca3af', fontSize: 14 }}>אין מיונים להצגה</p>
@@ -228,21 +385,46 @@ export function SortingTable({ events, suppliers, fields, receivingOrders, grade
 
   return (
     <div dir="rtl">
-      {activeFilterCount > 0 && (
-        <div style={{ marginBottom: 8 }}>
+      {/* ── toolbar ── */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button
+          onClick={handleExport}
+          style={{ fontSize: 12, padding: '4px 12px', border: '1px solid #86efac', borderRadius: 6, background: '#f0fdf4', color: '#16a34a', cursor: 'pointer', fontWeight: 500 }}
+        >
+          ↓ ייצוא לאקסל
+        </button>
+        {onImportRows && (
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            style={{ fontSize: 12, padding: '4px 12px', border: '1px solid #bfdbfe', borderRadius: 6, background: '#eff6ff', color: '#1d4ed8', cursor: 'pointer', fontWeight: 500 }}
+          >
+            ↑ ייבוא מאקסל
+          </button>
+        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,.xls"
+          style={{ display: 'none' }}
+          onChange={async e => {
+            const file = e.target.files?.[0]
+            if (file) await handleImportFile(file)
+            e.target.value = ''
+          }}
+        />
+        {activeFilterCount > 0 && (
           <button
             onClick={() => setColFilters({})}
-            style={{ fontSize: 12, padding: '3px 10px', border: '1px solid #fed7aa', borderRadius: 6, background: '#fff7ed', color: '#c2410c', cursor: 'pointer' }}
+            style={{ fontSize: 12, padding: '4px 10px', border: '1px solid #fed7aa', borderRadius: 6, background: '#fff7ed', color: '#c2410c', cursor: 'pointer' }}
           >
             נקה סינונים ({activeFilterCount})
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
+      {/* ── table ── */}
       <div style={{ overflowX: 'auto', maxHeight: '70vh', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 8 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-
-          {/* ── HEADER ── */}
           <thead>
             <tr style={{ background: '#f9fafb' }}>
               {FIXED_COLS.map(col => (
@@ -277,13 +459,12 @@ export function SortingTable({ events, suppliers, fields, receivingOrders, grade
               ))}
             </tr>
           </thead>
-
-          {/* ── BODY ── */}
           <tbody>
             {rows.map(({ event: e, field, supplier, kabala, total }) => {
               const rowBg = e.freshness_type === 'טרי' ? '#f0fdf4' : '#fff7ed'
               return (
                 <tr key={e.id} style={{ background: rowBg }}>
+                  <td style={{ ...tdStyle, color: '#6b7280', fontFamily: 'monospace' }}>{e.sort_serial}</td>
                   <td style={tdStyle}>{field}</td>
                   <td style={{ ...tdStyle, fontWeight: 500, color: e.freshness_type === 'טרי' ? '#16a34a' : '#c2410c' }}>
                     {e.freshness_type}
@@ -308,12 +489,9 @@ export function SortingTable({ events, suppliers, fields, receivingOrders, grade
               )
             })}
           </tbody>
-
-          {/* ── TOTALS ROW ── */}
           <tfoot>
             <tr style={{ background: '#f3f4f6', borderTop: '2px solid #e5e7eb', fontWeight: 600 }}>
-              <td style={{ ...tdStyle, color: '#374151' }}>סה"כ ({rows.length})</td>
-              <td style={tdStyle} /><td style={tdStyle} /><td style={tdStyle} /><td style={tdStyle} /><td style={tdStyle} />
+              <td style={{ ...tdStyle, color: '#374151' }} colSpan={7}>סה"כ ({rows.length})</td>
               {sortedGrades.map(g => (
                 <td key={g.id} style={{ ...tdStyle, textAlign: 'center', color: '#374151' }}>
                   {(totals.gradeMap[g.name] ?? 0) > 0 ? totals.gradeMap[g.name].toLocaleString() : '—'}
@@ -323,11 +501,10 @@ export function SortingTable({ events, suppliers, fields, receivingOrders, grade
               <td style={tdStyle} />
             </tr>
           </tfoot>
-
         </table>
       </div>
 
-      {/* ── FILTER POPUP ── */}
+      {/* ── filter popup ── */}
       {openFilter && (() => {
         const colDef = [...FIXED_COLS, ...TAIL_COLS].find(c => c.key === openFilter.key)!
         const uniq = getUniqueVals(openFilter.key)
@@ -402,6 +579,40 @@ export function SortingTable({ events, suppliers, fields, receivingOrders, grade
           </>
         )
       })()}
+
+      {/* ── import preview modal ── */}
+      {importPreview && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)' }} onClick={() => setImportPreview(null)} />
+          <div style={{ position: 'relative', background: '#fff', borderRadius: 12, padding: 24, width: 360, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+            <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 8, color: '#111827' }}>ייבוא מיונים</h3>
+            <p style={{ fontSize: 13, color: '#374151', marginBottom: 4 }}>
+              קובץ: <span style={{ fontWeight: 500 }}>{importPreview.filename}</span>
+            </p>
+            <p style={{ fontSize: 13, color: '#374151', marginBottom: 16 }}>
+              נמצאו <span style={{ fontWeight: 700, color: '#1d4ed8' }}>{importPreview.rows.length}</span> מיונים לייבוא.
+            </p>
+            <p style={{ fontSize: 11, color: '#9ca3af', marginBottom: 20 }}>
+              המספרים הסידוריים יוקצו מחדש. שדות וספקים ישויכו לפי שם.
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => setImportPreview(null)}
+                style={{ flex: 1, padding: '8px 0', fontSize: 13, border: '1px solid #e5e7eb', borderRadius: 8, background: '#fff', color: '#6b7280', cursor: 'pointer' }}
+              >
+                ביטול
+              </button>
+              <button
+                onClick={confirmImport}
+                disabled={importing}
+                style={{ flex: 1, padding: '8px 0', fontSize: 13, border: 'none', borderRadius: 8, background: '#1d4ed8', color: '#fff', cursor: importing ? 'wait' : 'pointer', fontWeight: 600, opacity: importing ? 0.7 : 1 }}
+              >
+                {importing ? 'מייבא...' : 'ייבא'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

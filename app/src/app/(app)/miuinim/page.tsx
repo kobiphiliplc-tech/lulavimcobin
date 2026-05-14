@@ -16,7 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SortingForm } from '@/components/miuinim/SortingForm'
 import { WhatsAppShareDialog } from '@/components/miuinim/WhatsAppShare'
-import { SortingTable } from '@/components/miuinim/SortingTable'
+import { SortingTable, type ImportedSortingRow } from '@/components/miuinim/SortingTable'
 import {
   GRADES, LENGTH_TYPES, FRESHNESS_TYPES,
   GRADE_GROUP_TOP, GRADE_GROUP_MID, GRADE_GROUP_LOWER, GRADE_GROUP_REJECT,
@@ -669,6 +669,59 @@ export default function MiuinimPage() {
     setSelectedIds(prev => { const n = new Set(prev); if (n.has(id)) { n.delete(id) } else { n.add(id) } return n })
   }
 
+  async function handleImportRows(rows: ImportedSortingRow[]): Promise<{ success: number; errors: string[] }> {
+    if (!activeSeason) return { success: 0, errors: ['אין עונה פעילה'] }
+    const errors: string[] = []
+    let success = 0
+
+    const { data: lastSorted } = await supabase
+      .from('sorting_events')
+      .select('sort_serial')
+      .order('sort_serial', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    let nextSerial = computeNextSerial(lastSorted?.sort_serial)
+
+    for (const row of rows) {
+      const field    = fields.find(f => f.name === row.field_name)
+      const supplier = suppliers.find(s => s.name === row.supplier_name)
+
+      const payload = {
+        season:         activeSeason,
+        sort_serial:    nextSerial++,
+        sorted_date:    row.sorted_date,
+        field_id:       field?.id ?? null,
+        field_name:     field?.name ?? row.field_name ?? null,
+        supplier_id:    supplier?.id ?? null,
+        freshness_type: row.freshness_type,
+        length_type:    row.length_type,
+        status_type:    row.status_type || 'בסיסי',
+        warehouse_code: row.warehouse_code || null,
+        notes:          null,
+      }
+
+      const { data: inserted, error } = await supabase
+        .from('sorting_events').insert(payload).select().single()
+      if (error || !inserted) {
+        errors.push(`שורה ${nextSerial - 1}: ${error?.message ?? 'שגיאה'}`)
+        continue
+      }
+
+      const qtys = row.quantities.filter(q => q.quantity > 0)
+        .map(q => ({ grade: q.grade, quantity: q.quantity, sorting_event_id: inserted.id }))
+      if (qtys.length) await supabase.from('sorting_quantities').insert(qtys)
+
+      for (const q of row.quantities) {
+        if (q.quantity > 0) await upsertInventory(q.grade, row.length_type, row.freshness_type, q.quantity)
+      }
+      success++
+    }
+
+    fetchAll()
+    return { success, errors }
+  }
+
   // ── derived ────────────────────────────────────────────────────────────────
 
   const filteredEvents = useMemo(() => {
@@ -901,6 +954,7 @@ export default function MiuinimPage() {
             fields={fields}
             receivingOrders={receivingOrders}
             grades={gradesList}
+            onImportRows={handleImportRows}
           />
         </TabsContent>
 
