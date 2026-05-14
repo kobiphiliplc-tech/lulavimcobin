@@ -129,26 +129,18 @@ export function buildCardHtml(
 }
 
 async function captureHtml(html: string): Promise<Blob> {
+  const { toPng } = await import('html-to-image')
   const wrap = document.createElement('div')
   wrap.style.cssText = 'position:fixed;top:-9999px;left:-9999px;padding:16px;background:#f3f4f6;'
   wrap.innerHTML = html
   document.body.appendChild(wrap)
   try {
-    const { default: html2canvas } = await import('html2canvas')
-    const canvas = await html2canvas(wrap.firstElementChild as HTMLElement, {
-      scale: 2.5,
-      useCORS: true,
+    const dataUrl = await toPng(wrap.firstElementChild as HTMLElement, {
+      pixelRatio: 2.5,
       backgroundColor: '#f3f4f6',
-      logging: false,
-      onclone: (clonedDoc) => {
-        // Remove all external/global stylesheets — card uses only inline styles.
-        // This prevents html2canvas from choking on oklch() colors from Tailwind v4.
-        clonedDoc.querySelectorAll('link[rel="stylesheet"], style').forEach(el => el.remove())
-      },
     })
-    return await new Promise<Blob>((resolve, reject) =>
-      canvas.toBlob(b => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/png')
-    )
+    const res = await fetch(dataUrl)
+    return await res.blob()
   } finally {
     document.body.removeChild(wrap)
   }
