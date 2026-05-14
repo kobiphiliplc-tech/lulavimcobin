@@ -49,90 +49,79 @@ function buildCardHtml(
   const midTotal    = grpSum(qtys, midG.map(g => g.name))
   const lowTotal    = grpSum(qtys, lowG.map(g => g.name))
   const rejectTotal = grpSum(qtys, rejectG.map(g => g.name))
-  const netTotal    = total - rejectTotal
-
-  const fieldName    = fields.find(f => f.id === event.field_id)?.name ?? event.field_name ?? '—'
-  const supplierName = suppliers.find(s => s.id === event.supplier_id)?.name ?? ''
-  const dateStr      = event.sorted_date
+  const fieldName = fields.find(f => f.id === event.field_id)?.name ?? event.field_name ?? '—'
+  const dateStr   = event.sorted_date
     ? new Date(event.sorted_date + 'T00:00:00').toLocaleDateString('he-IL')
     : '—'
 
-  const topLabel = highG.slice(0, 2).map(g => g.name).join('+') || 'רמה גבוהה'
-  const midLabel = midG.slice(0,  2).map(g => g.name).join('+') || 'רמה ביניים'
-  const lowLabel = lowG.slice(0,  2).map(g => g.name).join('+') || 'רמה נמוכה'
-
-  // RTL flex: first DOM child = rightmost visual. Row: name | dot | bar | qty | pct%
-  const gradeRow = (g: Grade) => {
-    const qty = getQ(g.name)
-    const p   = pct(qty)
-    const barW = qty > 0 ? Math.max(p, 2) : 0
-    return `<div style="display:flex;align-items:center;height:22px;direction:rtl;">
-      <span style="font-size:12px;font-weight:500;color:#1f2937;width:48px;text-align:right;flex-shrink:0;white-space:nowrap;overflow:hidden;">${g.name}</span>
-      <span style="display:block;width:8px;height:8px;border-radius:50%;background:${g.color};flex-shrink:0;margin:0 6px;border:1px solid rgba(0,0,0,0.1);"></span>
-      <div style="flex:1;height:3px;background:#efefef;border-radius:2px;position:relative;overflow:hidden;">
-        <div style="position:absolute;top:0;right:0;height:100%;width:${barW}%;background:${g.color};border-radius:2px;min-width:${qty>0?'3px':'0'};"></div>
-      </div>
-      <span style="font-size:13px;font-weight:700;color:#111;width:50px;text-align:right;flex-shrink:0;">${qty.toLocaleString('he-IL')}</span>
-      <span style="font-size:11px;color:#aaa;width:32px;text-align:left;flex-shrink:0;">${p}%</span>
-    </div>`
-  }
-
-  const rejectActive   = rejectG.filter(g => getQ(g.name) > 0)
-  const rejectRowsHtml = rejectActive.map(g => `${g.name} ${getQ(g.name).toLocaleString('he-IL')}`).join('، ')
-
-  const statusBg    = !event.status_type || event.status_type === 'בסיסי' ? '#dcfce7' : '#fef9c3'
-  const statusColor = !event.status_type || event.status_type === 'בסיסי' ? '#166534' : '#713f12'
+  const rejectActive     = rejectG.filter(g => getQ(g.name) > 0)
+  const gradeRows        = mainG.map(g => ({ name: g.name, color: g.color, count: getQ(g.name), pct: pct(getQ(g.name)) }))
+  const whitesilverPct   = pct(topTotal)
+  const silver2orangePct = pct(midTotal)
+  const kosherblackPct   = pct(lowTotal)
+  const rejectsPct       = pct(rejectTotal)
 
   return `
-<div style="width:380px;font-family:Arial,Helvetica,sans-serif;direction:rtl;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.16);">
+<div style="width:380px;min-width:380px;max-width:380px;font-family:Arial,sans-serif;background:#fff;border-radius:12px;overflow:hidden;border:0.5px solid #ddd;direction:ltr;">
 
-  <div style="background:#1a5c2a;color:#fff;padding:16px;">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:20px;font-weight:700;line-height:1.3;word-break:break-word;">${fieldName}</div>
-        <div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:4px;white-space:nowrap;">${dateStr} · ${event.length_type} · ${event.freshness_type}</div>
-        ${supplierName ? `<div style="font-size:10px;opacity:0.65;margin-top:2px;">${supplierName}</div>` : ''}
-      </div>
-      <div style="flex-shrink:0;text-align:center;padding-top:2px;">
-        <div style="background:rgba(134,239,172,0.3);border:1px solid rgba(134,239,172,0.5);border-radius:6px;padding:3px 8px;font-family:monospace;font-size:12px;letter-spacing:0.5px;white-space:nowrap;">#${event.sort_serial}</div>
-        ${event.warehouse_code ? `<div style="font-size:11px;opacity:0.75;margin-top:4px;text-align:center;">גוף ${event.warehouse_code}</div>` : ''}
-      </div>
+  <!-- HEADER -->
+  <div style="background:#1a5c2a;padding:16px 16px;display:table;width:100%;box-sizing:border-box;">
+    <div style="display:table-cell;width:90px;vertical-align:middle;">
+      <div style="background:rgba(134,239,172,0.3);color:#bbf7d0;font-size:13px;font-weight:700;padding:4px 10px;border-radius:8px;display:inline-block;">#${event.sort_serial}</div>
+      ${event.warehouse_code ? `<div style="font-size:11px;color:rgba(255,255,255,0.75);">גוף ${event.warehouse_code}</div>` : ''}
+    </div>
+    <div style="display:table-cell;vertical-align:middle;text-align:right;">
+      <div style="font-size:20px;font-weight:700;color:#fff;">${fieldName}</div>
+      <div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:4px;">${dateStr} · ${event.length_type} · ${event.freshness_type}</div>
     </div>
   </div>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;background:#f8faf8;border-bottom:1px solid #e5e7eb;">
-    <div style="padding:9px 4px;text-align:center;border-left:1px solid #e5e7eb;">
-      <div style="font-size:9px;color:#888;letter-spacing:0.2px;margin-bottom:2px;">${topLabel}</div>
-      <div style="font-size:20px;font-weight:700;color:#16a34a;line-height:1;">${pct(topTotal)}%</div>
+  <!-- 3 חתכים -->
+  <div style="display:table;width:100%;border-bottom:1px solid #eee;table-layout:fixed;">
+    <div style="display:table-cell;padding:10px 12px;text-align:center;border-left:1px solid #eee;">
+      <div style="font-size:11px;color:#777;margin-bottom:4px;">כשר+שחור</div>
+      <div style="font-size:18px;font-weight:700;color:#6b7280;">${kosherblackPct}%</div>
     </div>
-    <div style="padding:9px 4px;text-align:center;border-left:1px solid #e5e7eb;">
-      <div style="font-size:9px;color:#888;letter-spacing:0.2px;margin-bottom:2px;">${midLabel}</div>
-      <div style="font-size:20px;font-weight:700;color:#ea580c;line-height:1;">${pct(midTotal)}%</div>
+    <div style="display:table-cell;padding:10px 12px;text-align:center;border-left:1px solid #eee;">
+      <div style="font-size:11px;color:#777;margin-bottom:4px;">כסף2+כתום</div>
+      <div style="font-size:18px;font-weight:700;color:#ea580c;">${silver2orangePct}%</div>
     </div>
-    <div style="padding:9px 4px;text-align:center;">
-      <div style="font-size:9px;color:#888;letter-spacing:0.2px;margin-bottom:2px;">${lowLabel}</div>
-      <div style="font-size:20px;font-weight:700;color:#9ca3af;line-height:1;">${pct(lowTotal)}%</div>
+    <div style="display:table-cell;padding:10px 12px;text-align:center;">
+      <div style="font-size:11px;color:#777;margin-bottom:4px;">לבן+כסף</div>
+      <div style="font-size:18px;font-weight:700;color:#16a34a;">${whitesilverPct}%</div>
     </div>
   </div>
 
-  <div style="padding:10px 14px 8px;">
-    ${mainG.map(g => gradeRow(g)).join('')}
-    ${rejectTotal > 0 ? `
-      <div style="border-top:1px dashed #ddd;margin:8px 0 6px;"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;direction:rtl;">
-        <span style="font-size:11px;color:#555;">${rejectRowsHtml}</span>
-        <span style="font-size:10px;color:#bbb;flex-shrink:0;white-space:nowrap;">${pct(rejectTotal)}% · פסולים</span>
-      </div>
-    ` : ''}
+  <!-- שורות רמות -->
+  <div style="padding:8px 0;">
+    ${gradeRows.map(grade => `
+    <table style="width:100%;border-collapse:collapse;padding:0 12px;" cellpadding="0" cellspacing="0"><tr>
+      <td style="width:52px;font-size:13px;color:#222;text-align:right;padding:4px 12px 4px 0;white-space:nowrap;">${grade.name}</td>
+      <td style="width:12px;padding:0 2px;"><div style="width:8px;height:8px;border-radius:50%;background:${grade.color};margin:auto;"></div></td>
+      <td style="padding:0 4px;"><div style="height:6px;background:#f0f0f0;border-radius:3px;"><div style="float:right;width:${grade.pct}%;height:6px;background:${grade.color};border-radius:3px;"></div></div></td>
+      <td style="width:54px;font-size:13px;font-weight:700;color:#222;text-align:left;padding:4px 0 4px 4px;">${grade.count.toLocaleString()}</td>
+      <td style="width:34px;font-size:12px;color:#888;text-align:left;padding:4px 0;">${grade.pct}%</td>
+    </tr></table>`).join('')}
   </div>
 
-  <div style="border-top:1px solid #eee;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;background:#f8faf8;direction:rtl;">
-    <div style="text-align:right;">
-      <div style="font-size:9px;color:#16a34a;letter-spacing:0.5px;margin-bottom:2px;">סה&quot;כ לולבים</div>
-      <div style="font-size:22px;font-weight:800;color:#16a34a;line-height:1;">${netTotal.toLocaleString('he-IL')}</div>
+  <!-- פסולים (רק אם יש) -->
+  ${rejectActive.length > 0 ? `
+  <div style="padding:6px 12px 10px;border-top:1px solid #f0f0f0;overflow:hidden;">
+    <div style="float:right;font-size:12px;color:#888;">פסולים · <span style="color:#ea580c;font-weight:600;">${rejectsPct}%</span></div>
+    <div style="font-size:12px;color:#555;text-align:left;">
+      ${rejectActive.map((r, i) => `${r.name} ${getQ(r.name).toLocaleString()}${i < rejectActive.length - 1 ? ' · ' : ''}`).join('')}
     </div>
-    <div style="background:${statusBg};color:${statusColor};border-radius:999px;padding:4px 12px;font-size:11px;font-weight:600;white-space:nowrap;">
-      ${event.status_type || 'בסיסי'} ✓
+  </div>` : ''}
+
+  <!-- FOOTER -->
+  <div style="padding:12px 16px;display:table;width:100%;box-sizing:border-box;border-top:1px solid #eee;background:#fafafa;">
+    <div style="display:table-cell;vertical-align:middle;width:120px;">
+      <div style="background:#dcfce7;color:#15803d;font-size:13px;font-weight:600;padding:6px 14px;border-radius:20px;margin-top:4px;">
+      &#10003; ${event.status_type || 'בסיסי'}
+    </div></div>
+    <div style="display:table-cell;vertical-align:middle;text-align:right;">
+      <div style="font-size:12px;color:#777;">סה&quot;כ לולבים</div>
+      <div style="font-size:26px;font-weight:700;color:#16a34a;line-height:1.1;">${total.toLocaleString()}</div>
     </div>
   </div>
 
