@@ -124,3 +124,21 @@ create policy "authenticated full access" on sale_order_items
 drop policy if exists "authenticated full access" on customer_payments;
 create policy "authenticated full access" on customer_payments
   for all to authenticated using (true) with check (true);
+
+-- ====== RLS policies: ספקים וחלקות ======
+alter table suppliers enable row level security;
+drop policy if exists "authenticated full access" on suppliers;
+create policy "authenticated full access" on suppliers
+  for all to authenticated using (true) with check (true);
+
+alter table fields enable row level security;
+drop policy if exists "authenticated full access" on fields;
+create policy "authenticated full access" on fields
+  for all to authenticated using (true) with check (true);
+
+-- allow anon reads (for offline / pre-login dropdowns)
+drop policy if exists "anon read" on suppliers;
+create policy "anon read" on suppliers for select to anon using (true);
+
+drop policy if exists "anon read" on fields;
+create policy "anon read" on fields for select to anon using (true);

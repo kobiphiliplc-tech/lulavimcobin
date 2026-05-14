@@ -301,7 +301,7 @@ export function SortingForm({
             )} />
           </div>
 
-          <div className="space-y-1">
+          <div className="space-y-1 min-w-0 overflow-hidden">
             <label className="text-xs text-gray-500 whitespace-nowrap">ספק</label>
             <Controller control={control} name="supplier_id" render={({ field }) => (
               <select className={selectCls} value={field.value ?? ''}
@@ -316,23 +316,23 @@ export function SortingForm({
               </select>
             )} />
             {addingSupplier && (
-              <div className="flex gap-1.5 mt-1">
+              <div className="flex gap-1 mt-1 w-full">
                 <input
                   autoFocus
                   type="text"
                   value={newSupplierName}
                   onChange={e => setNewSupplierName(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddSupplier() } if (e.key === 'Escape') { setAddingSupplier(false); setNewSupplierName('') } }}
-                  placeholder="שם ספק חדש..."
-                  className="flex-1 h-8 rounded-lg border border-green-400 px-2 text-sm outline-none focus:ring-2 focus:ring-green-500/20 bg-white"
+                  placeholder="שם ספק..."
+                  className="flex-1 min-w-0 h-8 rounded-lg border border-green-400 px-2 text-sm outline-none focus:ring-2 focus:ring-green-500/20 bg-white"
                 />
                 <button type="button" onClick={handleAddSupplier} disabled={addingSupplierBusy || !newSupplierName.trim()}
-                  className="flex-shrink-0 h-8 px-2 bg-green-600 text-white rounded-lg text-xs font-medium disabled:opacity-50 hover:bg-green-700">
+                  className="flex-shrink-0 h-8 px-1.5 bg-green-600 text-white rounded-lg text-xs font-medium disabled:opacity-50 hover:bg-green-700">
                   {addingSupplierBusy ? '...' : 'שמור'}
                 </button>
                 <button type="button" onClick={() => { setAddingSupplier(false); setNewSupplierName('') }}
-                  className="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600">
-                  <X className="h-3.5 w-3.5" />
+                  className="flex-shrink-0 h-8 w-7 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600">
+                  <X className="h-3 w-3" />
                 </button>
               </div>
             )}

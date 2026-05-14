@@ -127,7 +127,7 @@ export function SaleOrderForm({ open, onClose, onSave, customers, inventory, ord
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-4xl max-h-[90vh] overflow-y-auto overflow-x-hidden" dir="rtl">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-[700px] max-h-[90vh] overflow-y-auto overflow-x-hidden" dir="rtl">
         <DialogHeader>
           <DialogTitle>{order ? 'עריכת הזמנה' : 'הזמנה חדשה'}</DialogTitle>
         </DialogHeader>
