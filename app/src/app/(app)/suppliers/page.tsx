@@ -20,6 +20,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { toast } from 'sonner'
 import { Plus, ChevronLeft, ChevronDown, Pencil, Trash2 } from 'lucide-react'
 import type { Supplier, ReceivingOrder, SupplierPayment, Field } from '@/lib/types'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -183,6 +184,12 @@ function SupplierCard({
   const [fieldBusy,        setFieldBusy]        = useState(false)
   const [selectedFieldIds, setSelectedFieldIds] = useState<Set<number>>(new Set())
 
+  // ── confirm states ──
+  const [deleteFieldConfirm,       setDeleteFieldConfirm]       = useState<number | null>(null)
+  const [deleteBulkFieldsConfirm,  setDeleteBulkFieldsConfirm]  = useState(false)
+  const [deletePaymentConfirm,     setDeletePaymentConfirm]     = useState<number | null>(null)
+  const [deleteBulkPaymentsConfirm,setDeleteBulkPaymentsConfirm]= useState(false)
+
   const myFields = fields.filter(f => f.supplier_id === supplier.id)
 
   async function addField() {
@@ -230,7 +237,11 @@ function SupplierCard({
   }
 
   async function deleteField(id: number) {
-    if (!confirm('למחוק חלקה זו לצמיתות?')) return
+    setDeleteFieldConfirm(id)
+  }
+
+  async function doDeleteField(id: number) {
+    setDeleteFieldConfirm(null)
     setFieldBusy(true)
     const error = await detachAndDeleteFields([id])
     setFieldBusy(false)
@@ -241,9 +252,13 @@ function SupplierCard({
   }
 
   async function deleteBulkFields() {
+    if (selectedFieldIds.size === 0) return
+    setDeleteBulkFieldsConfirm(true)
+  }
+
+  async function doDeleteBulkFields() {
     const ids = Array.from(selectedFieldIds)
-    if (ids.length === 0) return
-    if (!confirm(`למחוק ${ids.length} חלקות לצמיתות?`)) return
+    setDeleteBulkFieldsConfirm(false)
     setFieldBusy(true)
     const error = await detachAndDeleteFields(ids)
     setFieldBusy(false)
@@ -299,7 +314,11 @@ function SupplierCard({
   }
 
   async function deletePayment(id: number) {
-    if (!confirm('למחוק תשלום זה?')) return
+    setDeletePaymentConfirm(id)
+  }
+
+  async function doDeletePayment(id: number) {
+    setDeletePaymentConfirm(null)
     const { error } = await supabase.from('supplier_payments').delete().eq('id', id)
     if (error) { toast.error('שגיאה: ' + error.message); return }
     toast.success('תשלום נמחק')
@@ -308,7 +327,12 @@ function SupplierCard({
   }
 
   async function deleteSelectedPayments() {
-    if (!confirm(`למחוק ${selectedPay.size} תשלומים?`)) return
+    if (selectedPay.size === 0) return
+    setDeleteBulkPaymentsConfirm(true)
+  }
+
+  async function doDeleteSelectedPayments() {
+    setDeleteBulkPaymentsConfirm(false)
     const { error } = await supabase.from('supplier_payments').delete().in('id', Array.from(selectedPay))
     if (error) { toast.error('שגיאה: ' + error.message); return }
     toast.success(`${selectedPay.size} תשלומים נמחקו`)
@@ -854,6 +878,34 @@ function SupplierCard({
         )}
       </div>
 
+      <ConfirmDialog
+        open={deleteFieldConfirm !== null}
+        title="מחיקת חלקה"
+        message="למחוק חלקה זו לצמיתות?"
+        onConfirm={() => deleteFieldConfirm !== null && doDeleteField(deleteFieldConfirm)}
+        onCancel={() => setDeleteFieldConfirm(null)}
+      />
+      <ConfirmDialog
+        open={deleteBulkFieldsConfirm}
+        title="מחיקת חלקות"
+        message={`למחוק ${selectedFieldIds.size} חלקות לצמיתות?`}
+        onConfirm={doDeleteBulkFields}
+        onCancel={() => setDeleteBulkFieldsConfirm(false)}
+      />
+      <ConfirmDialog
+        open={deletePaymentConfirm !== null}
+        title="מחיקת תשלום"
+        message="למחוק תשלום זה?"
+        onConfirm={() => deletePaymentConfirm !== null && doDeletePayment(deletePaymentConfirm)}
+        onCancel={() => setDeletePaymentConfirm(null)}
+      />
+      <ConfirmDialog
+        open={deleteBulkPaymentsConfirm}
+        title="מחיקת תשלומים"
+        message={`למחוק ${selectedPay.size} תשלומים?`}
+        onConfirm={doDeleteSelectedPayments}
+        onCancel={() => setDeleteBulkPaymentsConfirm(false)}
+      />
     </>
   )
 }
@@ -876,6 +928,12 @@ function SuppliersInner() {
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null)
   const [unassignedOpen, setUnassignedOpen] = useState(false)
   const [selectedUnassigned, setSelectedUnassigned] = useState<Set<number>>(new Set())
+
+  // ── delete confirm states ──
+  const [deleteSupplierConfirm, setDeleteSupplierConfirm] = useState<{ supplier: Supplier; hasDebt: boolean } | null>(null)
+  const [deleteSupplierFieldsConfirm, setDeleteSupplierFieldsConfirm] = useState<{ supplier: Supplier; fieldCount: number } | null>(null)
+  const [deleteUnassignedConfirm, setDeleteUnassignedConfirm] = useState<number | null>(null)
+  const [deleteBulkUnassignedConfirm, setDeleteBulkUnassignedConfirm] = useState(false)
 
   const today = todayISO()
 
@@ -976,7 +1034,11 @@ function SuppliersInner() {
   }
 
   async function deleteUnassignedField(id: number) {
-    if (!confirm('למחוק חלקה זו לצמיתות?')) return
+    setDeleteUnassignedConfirm(id)
+  }
+
+  async function doDeleteUnassignedField(id: number) {
+    setDeleteUnassignedConfirm(null)
     const error = await detachAndDeleteFields([id])
     if (error) { toast.error('שגיאה: ' + error.message); return }
     toast.success('חלקה נמחקה')
@@ -985,9 +1047,13 @@ function SuppliersInner() {
   }
 
   async function deleteBulkUnassigned() {
+    if (selectedUnassigned.size === 0) return
+    setDeleteBulkUnassignedConfirm(true)
+  }
+
+  async function doDeleteBulkUnassigned() {
     const ids = Array.from(selectedUnassigned)
-    if (ids.length === 0) return
-    if (!confirm(`למחוק ${ids.length} חלקות לצמיתות?`)) return
+    setDeleteBulkUnassignedConfirm(false)
     const error = await detachAndDeleteFields(ids)
     if (error) { toast.error('שגיאה: ' + error.message); return }
     toast.success(`${ids.length} חלקות נמחקו`)
@@ -996,23 +1062,28 @@ function SuppliersInner() {
   }
 
   async function handleDeleteSupplier(supplier: Supplier, hasDebt: boolean) {
-    const debtWarning = hasDebt ? '\n⚠ לספק זה יש חוב פתוח — המחיקה תאבד את כל ההיסטוריה!' : ''
-    if (!window.confirm(`למחוק את הספק "${supplier.name}"?${debtWarning}\n\nפעולה זו אינה הפיכה.`)) return
+    setDeleteSupplierConfirm({ supplier, hasDebt })
+  }
 
+  async function doDeleteSupplierStep1() {
+    if (!deleteSupplierConfirm) return
+    const { supplier } = deleteSupplierConfirm
+    setDeleteSupplierConfirm(null)
     const supplierFields = fields.filter(f => f.supplier_id === supplier.id)
-    let deleteFields = false
     if (supplierFields.length > 0) {
-      deleteFields = window.confirm(
-        `לספק "${supplier.name}" יש ${supplierFields.length} חלקות.\n\nלחץ אישור — למחוק אותן גם כן.\nלחץ ביטול — להשאיר אותן ללא שיוך.`
-      )
+      setDeleteSupplierFieldsConfirm({ supplier, fieldCount: supplierFields.length })
+    } else {
+      await doDeleteSupplierFinal(supplier, false)
     }
+  }
 
+  async function doDeleteSupplierFinal(supplier: Supplier, deleteFields: boolean) {
+    setDeleteSupplierFieldsConfirm(null)
     if (deleteFields) {
       await supabase.from('fields').delete().eq('supplier_id', supplier.id)
     } else {
       await supabase.from('fields').update({ supplier_id: null }).eq('supplier_id', supplier.id)
     }
-
     const { error } = await supabase.from('suppliers').delete().eq('id', supplier.id)
     if (error) { toast.error('שגיאה: ' + error.message); return }
     toast.success(`ספק "${supplier.name}" נמחק`)
@@ -1166,6 +1237,46 @@ function SuppliersInner() {
           })()}
         </div>
       )}
+
+      {/* ── Supplier delete confirm dialogs ── */}
+      <ConfirmDialog
+        open={!!deleteSupplierConfirm}
+        title="מחיקת ספק"
+        message={deleteSupplierConfirm
+          ? <>
+              <span>{`למחוק את הספק "${deleteSupplierConfirm.supplier.name}"? פעולה זו אינה הפיכה.`}</span>
+              {deleteSupplierConfirm.hasDebt && <span className="block mt-1 text-red-600 font-medium">⚠ לספק זה יש חוב פתוח — המחיקה תאבד את כל ההיסטוריה!</span>}
+            </>
+          : ''}
+        onConfirm={doDeleteSupplierStep1}
+        onCancel={() => setDeleteSupplierConfirm(null)}
+      />
+      <ConfirmDialog
+        open={!!deleteSupplierFieldsConfirm}
+        title="מחיקת חלקות הספק"
+        message={deleteSupplierFieldsConfirm
+          ? `לספק "${deleteSupplierFieldsConfirm.supplier.name}" יש ${deleteSupplierFieldsConfirm.fieldCount} חלקות. אישור — תמחק אותן. ביטול — תשאיר ללא שיוך.`
+          : ''}
+        confirmLabel="מחק חלקות"
+        cancelLabel="השאר ללא שיוך"
+        onConfirm={() => deleteSupplierFieldsConfirm && doDeleteSupplierFinal(deleteSupplierFieldsConfirm.supplier, true)}
+        onCancel={() => deleteSupplierFieldsConfirm && doDeleteSupplierFinal(deleteSupplierFieldsConfirm.supplier, false)}
+      />
+
+      <ConfirmDialog
+        open={deleteUnassignedConfirm !== null}
+        title="מחיקת חלקה"
+        message="למחוק חלקה זו לצמיתות?"
+        onConfirm={() => deleteUnassignedConfirm !== null && doDeleteUnassignedField(deleteUnassignedConfirm)}
+        onCancel={() => setDeleteUnassignedConfirm(null)}
+      />
+      <ConfirmDialog
+        open={deleteBulkUnassignedConfirm}
+        title="מחיקת חלקות"
+        message={`למחוק ${selectedUnassigned.size} חלקות לצמיתות?`}
+        onConfirm={doDeleteBulkUnassigned}
+        onCancel={() => setDeleteBulkUnassignedConfirm(false)}
+      />
 
       {/* ── New / Edit supplier dialog ── */}
       <Dialog open={supDialogOpen} onOpenChange={open => { setSupDialogOpen(open); if (!open) setEditingSupplier(null) }}>

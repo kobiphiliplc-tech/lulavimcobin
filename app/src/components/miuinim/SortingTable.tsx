@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef } from 'react'
 import type { CSSProperties } from 'react'
 import { toast } from 'sonner'
+import { Pencil } from 'lucide-react'
 import type { SortingEvent, Supplier, Field, ReceivingOrder, Grade } from '@/lib/types'
 
 // ── exported type used by page.tsx ─────────────────────────────────────────
@@ -25,6 +26,7 @@ interface Props {
   receivingOrders: ReceivingOrder[]
   grades: Grade[]
   onImportRows?: (rows: ImportedSortingRow[]) => Promise<{ success: number; errors: string[] }>
+  onEdit?: (event: SortingEvent) => void
 }
 
 type SortDir = 'asc' | 'desc'
@@ -84,7 +86,7 @@ function getColValue(colKey: string, row: RowData): string {
   }
 }
 
-export function SortingTable({ events, suppliers, fields, receivingOrders, grades, onImportRows }: Props) {
+export function SortingTable({ events, suppliers, fields, receivingOrders, grades, onImportRows, onEdit }: Props) {
   const [sortCol, setSortCol] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [colFilters, setColFilters] = useState<Record<string, string[]>>({})
@@ -457,6 +459,7 @@ export function SortingTable({ events, suppliers, fields, receivingOrders, grade
                   </div>
                 </th>
               ))}
+              {onEdit && <th style={{ ...thBase, width: 36 }} />}
             </tr>
           </thead>
           <tbody>
@@ -485,6 +488,17 @@ export function SortingTable({ events, suppliers, fields, receivingOrders, grade
                   <td style={tdStyle}>
                     <span style={statusStyle(e.status_type)}>{statusLabel(e.status_type)}</span>
                   </td>
+                  {onEdit && (
+                    <td style={{ ...tdStyle, padding: '4px 6px' }}>
+                      <button
+                        onClick={() => onEdit(e)}
+                        title="עריכה"
+                        style={{ background: 'none', border: '1px solid #e5e7eb', borderRadius: 6, padding: '3px 6px', cursor: 'pointer', color: '#6b7280', display: 'flex', alignItems: 'center' }}
+                      >
+                        <Pencil size={13} />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               )
             })}
@@ -499,6 +513,7 @@ export function SortingTable({ events, suppliers, fields, receivingOrders, grade
               ))}
               <td style={{ ...tdStyle, color: '#374151' }}>{totals.grandTotal.toLocaleString()}</td>
               <td style={tdStyle} />
+              {onEdit && <td style={tdStyle} />}
             </tr>
           </tfoot>
         </table>

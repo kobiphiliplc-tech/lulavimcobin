@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useSeason } from '@/lib/context/SeasonContext'
 import { GRADES, LENGTH_TYPES, FRESHNESS_TYPES, getGradeColor, getGradeTextColor } from '@/lib/constants'
 import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -167,6 +168,7 @@ export default function ArizotPage() {
   const [sortDir, setSortDir]       = useState<'asc' | 'desc'>('asc')
   const [colFilters, setColFilters] = useState<Record<string, string[]>>({})
   const [openFilter, setOpenFilter] = useState<{ key: string; x: number; y: number } | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
   const [filterSearch, setFilterSearch] = useState('')
 
   // ─── Form ──────────────────────────────────────────────────────────────────
@@ -340,7 +342,11 @@ export default function ArizotPage() {
   }
 
   async function deleteOrder(id: number) {
-    if (!confirm('למחוק את האריזה?')) return
+    setDeleteConfirm(id)
+  }
+
+  async function doDeleteOrder(id: number) {
+    setDeleteConfirm(null)
     const { error } = await supabase.from('packaging_orders').delete().eq('id', id)
     if (error) { toast.error('שגיאה במחיקה'); return }
     toast.success('האריזה נמחקה')
@@ -949,6 +955,14 @@ export default function ArizotPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={deleteConfirm !== null}
+        title="מחיקת אריזה"
+        message="למחוק את האריזה? פעולה זו אינה הפיכה."
+        onConfirm={() => deleteConfirm !== null && doDeleteOrder(deleteConfirm)}
+        onCancel={() => setDeleteConfirm(null)}
+      />
 
       {/* Assign Customer Dialog */}
       {assignTarget && (

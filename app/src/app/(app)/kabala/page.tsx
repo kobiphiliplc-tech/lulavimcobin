@@ -27,6 +27,7 @@ import Link from 'next/link'
 import { Plus, Pencil, Trash2, ChevronUp, ChevronDown, CheckCircle2 } from 'lucide-react'
 import type { ReceivingOrder, Supplier, Field, FieldForecast, FreshnessType } from '@/lib/types'
 import { LENGTH_TYPES } from '@/lib/constants'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
 function todayISO() {
   const d = new Date()
@@ -213,6 +214,7 @@ export default function KabalaPage() {
   const [dialogOpen,     setDialogOpen]     = useState(false)
   const [editing,        setEditing]        = useState<ReceivingOrder | undefined>()
   const [activeTab,      setActiveTab]      = useState<'list' | 'forecast'>('list')
+  const [deleteConfirm,  setDeleteConfirm]  = useState<ReceivingOrder | null>(null)
 
   const { register, handleSubmit, control, reset, watch, setValue,
     formState: { errors, isSubmitting } } = useForm<FormData>({
@@ -444,7 +446,11 @@ export default function KabalaPage() {
   }
 
   async function handleDelete(order: ReceivingOrder) {
-    if (!confirm(`למחוק קבלה ${order.serial_no}?`)) return
+    setDeleteConfirm(order)
+  }
+
+  async function doDelete(order: ReceivingOrder) {
+    setDeleteConfirm(null)
     const { error } = await supabase.from('receiving_orders').delete().eq('id', order.id)
     if (error) { toast.error('שגיאה: ' + error.message); return }
     toast.success('קבלה נמחקה')
@@ -927,6 +933,14 @@ export default function KabalaPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!deleteConfirm}
+        title="מחיקת קבלה"
+        message={deleteConfirm ? `למחוק קבלה ${deleteConfirm.serial_no}?` : ''}
+        onConfirm={() => deleteConfirm && doDelete(deleteConfirm)}
+        onCancel={() => setDeleteConfirm(null)}
+      />
     </div>
   )
 }

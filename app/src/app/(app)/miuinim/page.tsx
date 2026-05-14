@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SortingForm } from '@/components/miuinim/SortingForm'
 import { WhatsAppShareDialog } from '@/components/miuinim/WhatsAppShare'
 import { SortingTable, type ImportedSortingRow } from '@/components/miuinim/SortingTable'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import {
   GRADES, LENGTH_TYPES, FRESHNESS_TYPES,
   GRADE_GROUP_TOP, GRADE_GROUP_MID, GRADE_GROUP_LOWER, GRADE_GROUP_REJECT,
@@ -386,6 +387,8 @@ export default function MiuinimPage() {
   const [selectedIds,     setSelectedIds]     = useState<Set<number>>(new Set())
   const [selectionMode,   setSelectionMode]   = useState(false)
   const [waShareOpen,     setWaShareOpen]     = useState(false)
+  const [deleteConfirm,   setDeleteConfirm]   = useState<SortingEvent | null>(null)
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
 
   const loadFromCache = useCallback(async () => {
     if (!activeSeason) return
@@ -618,7 +621,11 @@ export default function MiuinimPage() {
   }
 
   async function handleDelete(event: SortingEvent) {
-    if (!confirm(`למחוק מיון מס׳ ${event.sort_serial}?`)) return
+    setDeleteConfirm(event)
+  }
+
+  async function doDelete(event: SortingEvent) {
+    setDeleteConfirm(null)
 
     // Optimistic remove from local state + cache immediately
     setEvents(prev => prev.filter(e => e.id !== event.id))
@@ -652,7 +659,11 @@ export default function MiuinimPage() {
 
   async function handleBulkDelete() {
     if (selectedIds.size === 0) return
-    if (!confirm(`למחוק ${selectedIds.size} מיונים? פעולה זו תחזיר את הכמויות למלאי.`)) return
+    setBulkDeleteConfirm(true)
+  }
+
+  async function doBulkDelete() {
+    setBulkDeleteConfirm(false)
     const toDelete = events.filter(e => selectedIds.has(e.id))
     for (const event of toDelete) {
       for (const q of event.sorting_quantities ?? []) {
@@ -955,6 +966,7 @@ export default function MiuinimPage() {
             receivingOrders={receivingOrders}
             grades={gradesList}
             onImportRows={handleImportRows}
+            onEdit={event => { setEditing(event); setDialogOpen(true) }}
           />
         </TabsContent>
 
@@ -1078,6 +1090,22 @@ export default function MiuinimPage() {
         suppliers={suppliers}
         fields={fields}
         grades={gradesList}
+      />
+
+      {/* Delete confirm dialogs */}
+      <ConfirmDialog
+        open={!!deleteConfirm}
+        title="מחיקת מיון"
+        message={deleteConfirm ? `למחוק מיון מס׳ ${deleteConfirm.sort_serial}? פעולה זו תחזיר את הכמויות למלאי.` : ''}
+        onConfirm={() => deleteConfirm && doDelete(deleteConfirm)}
+        onCancel={() => setDeleteConfirm(null)}
+      />
+      <ConfirmDialog
+        open={bulkDeleteConfirm}
+        title="מחיקת מיונים"
+        message={`למחוק ${selectedIds.size} מיונים? פעולה זו תחזיר את הכמויות למלאי.`}
+        onConfirm={doBulkDelete}
+        onCancel={() => setBulkDeleteConfirm(false)}
       />
 
       {/* WhatsApp FAB */}
