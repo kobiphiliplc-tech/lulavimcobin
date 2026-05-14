@@ -127,12 +127,12 @@ export function SaleOrderForm({ open, onClose, onSave, customers, inventory, ord
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-[700px] max-h-[90vh] overflow-y-auto overflow-x-hidden" dir="rtl">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-[700px] max-h-[90vh] overflow-y-auto" dir="rtl">
         <DialogHeader>
           <DialogTitle>{order ? 'עריכת הזמנה' : 'הזמנה חדשה'}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 min-w-0">
           {/* Header */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
@@ -204,7 +204,7 @@ export function SaleOrderForm({ open, onClose, onSave, customers, inventory, ord
 
             <div className="space-y-2">
               {/* Table header */}
-              <div className="grid grid-cols-[2fr_80px_75px_68px_68px_2fr_28px] gap-2 text-xs text-muted-foreground px-1">
+              <div className="grid grid-cols-[minmax(65px,2fr)_65px_60px_55px_60px_minmax(65px,2fr)_24px] gap-2 text-xs text-muted-foreground px-1">
                 <span>גדר</span><span>אורך</span><span>טריות</span><span>כמות</span><span>מחיר</span><span>הערה</span><span></span>
               </div>
 
@@ -217,7 +217,7 @@ export function SaleOrderForm({ open, onClose, onSave, customers, inventory, ord
 
                 return (
                   <div key={field.id} className="space-y-1">
-                    <div className="grid grid-cols-[2fr_80px_75px_68px_68px_2fr_28px] gap-2 items-center">
+                    <div className="grid grid-cols-[minmax(65px,2fr)_65px_60px_55px_60px_minmax(65px,2fr)_24px] gap-2 items-center">
                       <select {...register(`items.${idx}.grade`)} className={selectCls}>
                         {NON_REJECT_GRADES.map(g => <option key={g} value={g}>{g}</option>)}
                       </select>
@@ -264,7 +264,7 @@ export function SaleOrderForm({ open, onClose, onSave, customers, inventory, ord
                     </div>
 
                     {/* Available stock + row total */}
-                    <div className="grid grid-cols-[2fr_80px_75px_68px_68px_2fr_28px] gap-2 px-1">
+                    <div className="grid grid-cols-[minmax(65px,2fr)_65px_60px_55px_60px_minmax(65px,2fr)_24px] gap-2 px-1">
                       <span className={`text-xs col-span-3 ${available === 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
                         מלאי זמין: {available.toLocaleString('he-IL')}
                       </span>
