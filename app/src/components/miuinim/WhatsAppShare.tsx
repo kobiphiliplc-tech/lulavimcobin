@@ -67,8 +67,9 @@ export function buildCardHtml(
   <!-- HEADER -->
   <table style="width:100%;border-collapse:collapse;background:#1a5c2a;" cellpadding="0" cellspacing="0"><tr>
     <td style="width:90px;padding:16px;vertical-align:middle;">
-      <div style="background:rgba(134,239,172,0.3);color:#bbf7d0;font-size:13px;font-weight:700;padding:4px 10px;border-radius:8px;display:inline-block;">#${event.sort_serial}</div>
+      <div style="background:rgba(134,239,172,0.3);color:#bbf7d0;font-size:13px;font-weight:700;padding:4px 10px;border-radius:8px;display:inline-block;">${event.sort_serial}</div>
       ${event.warehouse_code ? `<div style="font-size:11px;color:rgba(255,255,255,0.75);margin-top:2px;">גוף ${event.warehouse_code}</div>` : ''}
+      ${event.notes ? `<div style="font-size:11px;color:rgba(255,255,255,0.82);margin-top:3px;line-height:1.3;">${event.notes}</div>` : ''}
     </td>
     <td style="padding:16px 16px 16px 0;vertical-align:middle;text-align:right;">
       <div style="font-size:20px;font-weight:700;color:#fff;line-height:1;margin-bottom:2px;">${fieldName}</div>
@@ -86,7 +87,7 @@ export function buildCardHtml(
       <div style="font-size:11px;color:#777;margin-bottom:2px;line-height:1;">כסף2+כתום</div>
       <div style="font-size:18px;font-weight:700;color:#ea580c;line-height:1;">${silver2orangePct}%</div>
     </td>
-    <td style="padding:10px 12px;text-align:center;vertical-align:middle;">
+    <td style="padding:10px 12px;text-align:center;border-left:1px solid #eee;vertical-align:middle;">
       <div style="font-size:11px;color:#777;margin-bottom:2px;line-height:1;">לבן+כסף</div>
       <div style="font-size:18px;font-weight:700;color:#16a34a;line-height:1;">${whitesilverPct}%</div>
     </td>
