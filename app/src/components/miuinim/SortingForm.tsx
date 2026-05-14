@@ -103,12 +103,13 @@ interface Props {
   onSubmit: (data: FormData) => Promise<void>
   onCancel: () => void
   onFieldAdded?: (name: string, supplierId?: number) => Promise<Field | null>
+  onSupplierAdded?: (name: string) => Promise<Supplier | null>
 }
 
 export function SortingForm({
   event, suppliers, fields, receivingOrders = [],
   usedWarehouseCodes = [],
-  suggestedSerial, grades: gradesProp, onSubmit, onCancel, onFieldAdded,
+  suggestedSerial, grades: gradesProp, onSubmit, onCancel, onFieldAdded, onSupplierAdded,
 }: Props) {
   const gradeList   = gradesProp ?? FALLBACK_GRADES
   const GROUP_RANK: Record<string, number> = { high: 0, mid: 1, low: 2, reject: 3 }
@@ -150,6 +151,24 @@ export function SortingForm({
   const [addingField,    setAddingField]    = useState(false)
   const [newFieldName,   setNewFieldName]   = useState('')
   const [addingFieldBusy, setAddingFieldBusy] = useState(false)
+
+  // add-supplier inline state
+  const [addingSupplier,    setAddingSupplier]    = useState(false)
+  const [newSupplierName,   setNewSupplierName]   = useState('')
+  const [addingSupplierBusy, setAddingSupplierBusy] = useState(false)
+
+  async function handleAddSupplier() {
+    const name = newSupplierName.trim()
+    if (!name || !onSupplierAdded) return
+    setAddingSupplierBusy(true)
+    const supplier = await onSupplierAdded(name)
+    setAddingSupplierBusy(false)
+    if (supplier) {
+      setValue('supplier_id', supplier.id)
+      setAddingSupplier(false)
+      setNewSupplierName('')
+    }
+  }
 
   // all fields sorted: supplier's own fields first, then the rest
   const filteredFields = useMemo(() => {
@@ -287,13 +306,36 @@ export function SortingForm({
             <Controller control={control} name="supplier_id" render={({ field }) => (
               <select className={selectCls} value={field.value ?? ''}
                 onChange={e => {
+                  if (e.target.value === '__new__') { setAddingSupplier(true); return }
                   field.onChange(e.target.value ? Number(e.target.value) : undefined)
                   setValue('field_id', undefined)
                 }}>
                 <option value="">— בחר ספק —</option>
                 {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                {onSupplierAdded && <option value="__new__">+ הוסף ספק חדש</option>}
               </select>
             )} />
+            {addingSupplier && (
+              <div className="flex gap-1.5 mt-1">
+                <input
+                  autoFocus
+                  type="text"
+                  value={newSupplierName}
+                  onChange={e => setNewSupplierName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddSupplier() } if (e.key === 'Escape') { setAddingSupplier(false); setNewSupplierName('') } }}
+                  placeholder="שם ספק חדש..."
+                  className="flex-1 h-8 rounded-lg border border-green-400 px-2 text-sm outline-none focus:ring-2 focus:ring-green-500/20 bg-white"
+                />
+                <button type="button" onClick={handleAddSupplier} disabled={addingSupplierBusy || !newSupplierName.trim()}
+                  className="flex-shrink-0 h-8 px-2 bg-green-600 text-white rounded-lg text-xs font-medium disabled:opacity-50 hover:bg-green-700">
+                  {addingSupplierBusy ? '...' : 'שמור'}
+                </button>
+                <button type="button" onClick={() => { setAddingSupplier(false); setNewSupplierName('') }}
+                  className="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="space-y-1">
