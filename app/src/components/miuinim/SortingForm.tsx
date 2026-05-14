@@ -316,7 +316,7 @@ export function SortingForm({
               </select>
             )} />
             {addingSupplier && (
-              <div className="flex gap-1.5 mt-1">
+              <div className="flex gap-1.5 mt-1 min-w-0 overflow-hidden">
                 <input
                   autoFocus
                   type="text"
@@ -324,7 +324,7 @@ export function SortingForm({
                   onChange={e => setNewSupplierName(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddSupplier() } if (e.key === 'Escape') { setAddingSupplier(false); setNewSupplierName('') } }}
                   placeholder="שם ספק חדש..."
-                  className="flex-1 h-8 rounded-lg border border-green-400 px-2 text-sm outline-none focus:ring-2 focus:ring-green-500/20 bg-white"
+                  className="min-w-0 flex-1 h-8 rounded-lg border border-green-400 px-2 text-sm outline-none focus:ring-2 focus:ring-green-500/20 bg-white"
                 />
                 <button type="button" onClick={handleAddSupplier} disabled={addingSupplierBusy || !newSupplierName.trim()}
                   className="flex-shrink-0 h-8 px-2 bg-green-600 text-white rounded-lg text-xs font-medium disabled:opacity-50 hover:bg-green-700">
@@ -368,7 +368,7 @@ export function SortingForm({
         {/* Add-field row — full width, appears below the grid */}
         {onFieldAdded && (
           addingField ? (
-            <div className="flex gap-2 mt-2">
+            <div className="flex gap-2 mt-2 min-w-0 overflow-hidden">
               <input
                 autoFocus
                 type="text"
@@ -376,7 +376,7 @@ export function SortingForm({
                 onChange={e => setNewFieldName(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddField() } if (e.key === 'Escape') { setAddingField(false); setNewFieldName('') } }}
                 placeholder="שם חלקה חדשה..."
-                className="flex-1 h-8 rounded-lg border border-green-400 px-2 text-sm outline-none focus:ring-2 focus:ring-green-500/20 bg-white"
+                className="min-w-0 flex-1 h-8 rounded-lg border border-green-400 px-2 text-sm outline-none focus:ring-2 focus:ring-green-500/20 bg-white"
               />
               <button type="button" onClick={handleAddField} disabled={addingFieldBusy || !newFieldName.trim()}
                 className="flex-shrink-0 h-8 px-3 bg-green-600 text-white rounded-lg text-xs font-medium disabled:opacity-50 hover:bg-green-700">
