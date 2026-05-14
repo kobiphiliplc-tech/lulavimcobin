@@ -34,6 +34,11 @@ function todayISO() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+function dedupeByName<T extends { name: string }>(arr: T[]): T[] {
+  const seen = new Set<string>()
+  return arr.filter(x => !seen.has(x.name) && seen.add(x.name))
+}
+
 const selectCls = "w-full rounded-lg border border-input bg-transparent px-2 py-1.5 text-sm h-8 outline-none focus:border-ring focus:ring-2 focus:ring-ring/50 disabled:opacity-50"
 
 // NaN (from empty number inputs with valueAsNumber:true) → undefined/default
@@ -216,6 +221,16 @@ export default function KabalaPage() {
   const [activeTab,      setActiveTab]      = useState<'list' | 'forecast'>('list')
   const [deleteConfirm,  setDeleteConfirm]  = useState<ReceivingOrder | null>(null)
 
+  // inline add supplier
+  const [addingSupplier,     setAddingSupplier]     = useState(false)
+  const [newSupplierName,    setNewSupplierName]    = useState('')
+  const [addingSupplierBusy, setAddingSupplierBusy] = useState(false)
+
+  // inline add field
+  const [addingField,     setAddingField]     = useState(false)
+  const [newFieldName,    setNewFieldName]    = useState('')
+  const [addingFieldBusy, setAddingFieldBusy] = useState(false)
+
   const { register, handleSubmit, control, reset, watch, setValue,
     formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema) as Resolver<FormData>,
@@ -306,8 +321,8 @@ export default function KabalaPage() {
 
     const ords = (ordRes.data ?? []) as ReceivingOrder[]
     setOrders(ords)
-    if (supRes.data)  setSuppliers(supRes.data)
-    if (fldRes.data)  setFields(fldRes.data)
+    if (supRes.data)  setSuppliers(dedupeByName(supRes.data))
+    if (fldRes.data)  setFields(dedupeByName(fldRes.data))
     if (!evRes.error) setSortingEvents(evRes.data as SortingEventSummary[])
     if (!fcRes.error) setForecasts(fcRes.data as FieldForecast[])
 
@@ -350,6 +365,37 @@ export default function KabalaPage() {
     window.history.replaceState({}, '', window.location.pathname)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading])
+
+  async function handleAddSupplier() {
+    const name = newSupplierName.trim()
+    if (!name) return
+    setAddingSupplierBusy(true)
+    const { data, error } = await supabase.from('suppliers').insert({ name }).select().single()
+    setAddingSupplierBusy(false)
+    if (error || !data) { toast.error('שגיאה בהוספת ספק: ' + error?.message); return }
+    const newSupplier = data as Supplier
+    setSuppliers(prev => [...prev, newSupplier].sort((a, b) => a.name.localeCompare(b.name, 'he')))
+    setValue('supplier_id', newSupplier.id)
+    setAddingSupplier(false)
+    setNewSupplierName('')
+    toast.success(`ספק "${name}" נוסף`)
+  }
+
+  async function handleAddField() {
+    const name = newFieldName.trim()
+    if (!name) return
+    setAddingFieldBusy(true)
+    const supplierId = watch('supplier_id')
+    const { data, error } = await supabase.from('fields').insert({ name, supplier_id: supplierId ?? null }).select().single()
+    setAddingFieldBusy(false)
+    if (error || !data) { toast.error('שגיאה בהוספת חלקה: ' + error?.message); return }
+    const newField = data as Field
+    setFields(prev => [...prev, newField].sort((a, b) => a.name.localeCompare(b.name, 'he')))
+    setValue('field_id', newField.id)
+    setAddingField(false)
+    setNewFieldName('')
+    toast.success(`חלקה "${name}" נוספה`)
+  }
 
   function getSortingStatus(order: ReceivingOrder, net: number) {
     if (order.warehouse_code) {
@@ -711,11 +757,36 @@ export default function KabalaPage() {
                 <Label className="text-xs">ספק</Label>
                 <Controller control={control} name="supplier_id" render={({ field }) => (
                   <select className={selectCls} value={field.value ?? ''}
-                    onChange={e => field.onChange(e.target.value ? Number(e.target.value) : undefined)}>
+                    onChange={e => {
+                      if (e.target.value === '__new__') { setAddingSupplier(true); return }
+                      field.onChange(e.target.value ? Number(e.target.value) : undefined)
+                    }}>
                     <option value="">— בחר ספק —</option>
                     {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    <option value="__new__">+ הוסף ספק חדש</option>
                   </select>
                 )} />
+                {addingSupplier && (
+                  <div className="flex gap-1.5 mt-1">
+                    <input
+                      autoFocus
+                      type="text"
+                      value={newSupplierName}
+                      onChange={e => setNewSupplierName(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddSupplier() } if (e.key === 'Escape') { setAddingSupplier(false); setNewSupplierName('') } }}
+                      placeholder="שם ספק חדש..."
+                      className="flex-1 h-8 rounded-lg border border-green-400 px-2 text-sm outline-none focus:ring-2 focus:ring-green-500/20 bg-white"
+                    />
+                    <button type="button" onClick={handleAddSupplier} disabled={addingSupplierBusy || !newSupplierName.trim()}
+                      className="flex-shrink-0 h-8 px-2 bg-green-600 text-white rounded-lg text-xs font-medium disabled:opacity-50 hover:bg-green-700">
+                      {addingSupplierBusy ? '...' : 'שמור'}
+                    </button>
+                    <button type="button" onClick={() => { setAddingSupplier(false); setNewSupplierName('') }}
+                      className="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600">
+                      ✕
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">קוד מחסן</Label>
@@ -740,11 +811,36 @@ export default function KabalaPage() {
                     <Label className="text-xs">שדה</Label>
                     <Controller control={control} name="field_id" render={({ field }) => (
                       <select className={selectCls} value={field.value ?? ''}
-                        onChange={e => field.onChange(e.target.value ? Number(e.target.value) : undefined)}>
+                        onChange={e => {
+                          if (e.target.value === '__new__') { setAddingField(true); return }
+                          field.onChange(e.target.value ? Number(e.target.value) : undefined)
+                        }}>
                         <option value="">— בחר שדה —</option>
                         {filteredFields.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                        <option value="__new__">+ הוסף חלקה חדשה</option>
                       </select>
                     )} />
+                    {addingField && (
+                      <div className="flex gap-1.5 mt-1">
+                        <input
+                          autoFocus
+                          type="text"
+                          value={newFieldName}
+                          onChange={e => setNewFieldName(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddField() } if (e.key === 'Escape') { setAddingField(false); setNewFieldName('') } }}
+                          placeholder="שם חלקה חדשה..."
+                          className="flex-1 h-8 rounded-lg border border-green-400 px-2 text-sm outline-none focus:ring-2 focus:ring-green-500/20 bg-white"
+                        />
+                        <button type="button" onClick={handleAddField} disabled={addingFieldBusy || !newFieldName.trim()}
+                          className="flex-shrink-0 h-8 px-2 bg-green-600 text-white rounded-lg text-xs font-medium disabled:opacity-50 hover:bg-green-700">
+                          {addingFieldBusy ? '...' : 'שמור'}
+                        </button>
+                        <button type="button" onClick={() => { setAddingField(false); setNewFieldName('') }}
+                          className="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600">
+                          ✕
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-1">

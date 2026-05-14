@@ -284,6 +284,21 @@ export default function MalayPage() {
     fetchData()
   }
 
+  // ── Quick add customer from sale form ────────────────────────────────────────
+
+  async function handleQuickAddCustomer(name: string, market: string): Promise<Customer | null> {
+    const currency = market === 'חו"ל' ? 'USD' : 'ILS'
+    const { data, error } = await supabase
+      .from('customers')
+      .insert({ name, market, currency })
+      .select()
+      .single()
+    if (error || !data) { toast.error('שגיאה בהוספת לקוח: ' + error?.message); return null }
+    setCustomers(prev => [...prev, data as Customer].sort((a, b) => a.name.localeCompare(b.name, 'he')))
+    toast.success(`לקוח "${name}" נוסף`)
+    return data as Customer
+  }
+
   // ── Save customer ─────────────────────────────────────────────────────────────
 
   async function handleSaveCustomer(data: { name: string; phone?: string; market: 'ישראל' | 'חו"ל'; currency: 'ILS' | 'USD' | 'EUR'; notes?: string }) {
@@ -533,6 +548,7 @@ export default function MalayPage() {
         customers={customers}
         inventory={inventory}
         order={editingOrder}
+        onCustomerAdded={handleQuickAddCustomer}
       />
 
       <CustomerFormDialog

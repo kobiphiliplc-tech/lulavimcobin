@@ -171,9 +171,15 @@ export default function ArizotPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
   const [filterSearch, setFilterSearch] = useState('')
 
+  // inline add customer
+  const [addingCustomer,     setAddingCustomer]     = useState(false)
+  const [newCustomerName,    setNewCustomerName]    = useState('')
+  const [newCustomerMarket,  setNewCustomerMarket]  = useState('ישראל')
+  const [addingCustomerBusy, setAddingCustomerBusy] = useState(false)
+
   // ─── Form ──────────────────────────────────────────────────────────────────
 
-  const { register, handleSubmit, control, watch, reset, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, control, watch, reset, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema) as Resolver<FormData>,
     defaultValues: {
       pack_date: new Date().toISOString().slice(0, 10),
@@ -224,6 +230,26 @@ export default function ArizotPage() {
   useEffect(() => { setPage(1) }, [sortCol, sortDir, colFilters])
 
   // ─── Submit ────────────────────────────────────────────────────────────────
+
+  async function handleAddCustomer() {
+    const name = newCustomerName.trim()
+    if (!name) return
+    setAddingCustomerBusy(true)
+    const currency = newCustomerMarket === 'חו"ל' ? 'USD' : 'ILS'
+    const { data: newCust, error } = await supabase
+      .from('customers')
+      .insert({ name, market: newCustomerMarket, currency })
+      .select()
+      .single()
+    setAddingCustomerBusy(false)
+    if (error || !newCust) { toast.error('שגיאה בהוספת לקוח: ' + error?.message); return }
+    setCustomers(prev => [...prev, newCust as Customer].sort((a, b) => a.name.localeCompare(b.name, 'he')))
+    setValue('customer_id', (newCust as Customer).id)
+    setAddingCustomer(false)
+    setNewCustomerName('')
+    setNewCustomerMarket('ישראל')
+    toast.success(`לקוח "${name}" נוסף`)
+  }
 
   async function onSubmit(data: FormData) {
     setSaving(true)
@@ -758,9 +784,9 @@ export default function ArizotPage() {
 
       {/* Form Drawer */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex" dir="rtl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center" dir="rtl">
           <div className="absolute inset-0 bg-black/40" onClick={() => { setShowForm(false); setEditing(null) }} />
-          <div className="relative mr-auto w-full max-w-xl bg-white h-full overflow-y-auto shadow-xl">
+          <div className="relative mx-auto w-full max-w-xl bg-white max-h-[95vh] overflow-y-auto shadow-xl rounded-xl">
             <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between z-10">
               <h2 className="text-base font-semibold text-gray-800">
                 {editing ? `עריכת אריזה #${editing.pack_number}` : 'אריזה חדשה'}
@@ -917,12 +943,45 @@ export default function ArizotPage() {
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">לקוח</label>
                     <Controller name="customer_id" control={control} render={({ field }) => (
-                      <select {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                      <select {...field} value={field.value ?? ''}
+                        onChange={e => {
+                          if (e.target.value === '__new__') { setAddingCustomer(true); return }
+                          field.onChange(e.target.value ? Number(e.target.value) : undefined)
+                        }}
                         className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white">
                         <option value="">— ללא לקוח —</option>
                         {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        <option value="__new__">+ הוסף לקוח חדש</option>
                       </select>
                     )} />
+                    {addingCustomer && (
+                      <div className="flex flex-col gap-1.5 mt-1.5 p-2 border border-green-200 rounded-lg bg-green-50">
+                        <input
+                          autoFocus
+                          type="text"
+                          value={newCustomerName}
+                          onChange={e => setNewCustomerName(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddCustomer() } if (e.key === 'Escape') { setAddingCustomer(false); setNewCustomerName('') } }}
+                          placeholder="שם לקוח חדש..."
+                          className="h-8 w-full rounded-lg border border-green-400 px-2 text-sm outline-none focus:ring-2 focus:ring-green-500/20 bg-white"
+                        />
+                        <div className="flex gap-1.5">
+                          <select value={newCustomerMarket} onChange={e => setNewCustomerMarket(e.target.value)}
+                            className="flex-1 h-8 rounded-lg border border-green-300 px-2 text-sm bg-white">
+                            <option value="ישראל">ישראל</option>
+                            <option value='חו"ל'>חו&quot;ל</option>
+                          </select>
+                          <button type="button" onClick={handleAddCustomer} disabled={addingCustomerBusy || !newCustomerName.trim()}
+                            className="flex-shrink-0 h-8 px-3 bg-green-600 text-white rounded-lg text-xs font-medium disabled:opacity-50 hover:bg-green-700">
+                            {addingCustomerBusy ? '...' : 'שמור'}
+                          </button>
+                          <button type="button" onClick={() => { setAddingCustomer(false); setNewCustomerName('') }}
+                            className="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-400 hover:text-gray-600">
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">מטבע</label>

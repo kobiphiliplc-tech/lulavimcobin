@@ -32,6 +32,11 @@ const PAGE_SIZE = 20
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
+function dedupeByName<T extends { name: string }>(arr: T[]): T[] {
+  const seen = new Set<string>()
+  return arr.filter(x => !seen.has(x.name) && seen.add(x.name))
+}
+
 function sumGroup(qtys: Array<{ grade: string; quantity: number }>, group: string[]) {
   return qtys.filter(q => group.includes(q.grade)).reduce((s, q) => s + q.quantity, 0)
 }
@@ -437,11 +442,11 @@ export default function MiuinimPage() {
       await cacheRows('cached_sorting_events', evRes.data as unknown as Record<string, unknown>[], activeSeason)
     }
     if (supRes.data) {
-      setSuppliers(supRes.data)
+      setSuppliers(dedupeByName(supRes.data))
       await cacheRows('cached_suppliers', supRes.data as Record<string, unknown>[])
     }
     if (fldRes.data) {
-      setFields(fldRes.data)
+      setFields(dedupeByName(fldRes.data))
       await cacheRows('cached_fields', fldRes.data as Record<string, unknown>[])
     }
     if (ordRes.data) {
@@ -655,6 +660,18 @@ export default function MiuinimPage() {
     setFields(prev => [...prev, data as Field].sort((a, b) => a.name.localeCompare(b.name, 'he')))
     toast.success(`חלקה "${name}" נוספה`)
     return data as Field
+  }
+
+  async function handleSupplierAdded(name: string): Promise<Supplier | null> {
+    const { data, error } = await supabase
+      .from('suppliers')
+      .insert({ name })
+      .select()
+      .single()
+    if (error || !data) { toast.error('שגיאה בהוספת ספק: ' + error?.message); return null }
+    setSuppliers(prev => [...prev, data as Supplier].sort((a, b) => a.name.localeCompare(b.name, 'he')))
+    toast.success(`ספק "${name}" נוסף`)
+    return data as Supplier
   }
 
   async function handleBulkDelete() {
@@ -1077,6 +1094,7 @@ export default function MiuinimPage() {
             grades={gradesList.length > 0 ? gradesList : undefined}
             onSubmit={handleSubmit}
             onFieldAdded={handleFieldAdded}
+            onSupplierAdded={handleSupplierAdded}
             onCancel={() => { setDialogOpen(false); setEditing(undefined); setNextSerial(undefined) }}
           />
         </DialogContent>

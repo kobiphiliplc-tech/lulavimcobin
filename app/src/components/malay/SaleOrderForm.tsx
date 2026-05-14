@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useCallback } from 'react'
-import { useForm, useFieldArray, type Resolver } from 'react-hook-form'
+import { useEffect, useCallback, useState } from 'react'
+import { useForm, useFieldArray, Controller, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, X } from 'lucide-react'
 import { NON_REJECT_GRADES, LENGTH_TYPES, FRESHNESS_TYPES } from '@/lib/constants'
 import type { Customer, SaleOrder, InventoryRow } from '@/lib/types'
 
@@ -49,14 +49,20 @@ interface Props {
   customers: Customer[]
   inventory: InventoryRow[]
   order?: SaleOrder | null
+  onCustomerAdded?: (name: string, market: string) => Promise<Customer | null>
 }
 
 function emptyItem() {
   return { grade: 'לבן', length_type: 'רגיל', freshness_type: 'טרי', quantity_ordered: undefined as unknown as number, unit_price: undefined as unknown as number, notes: '' }
 }
 
-export function SaleOrderForm({ open, onClose, onSave, customers, inventory, order }: Props) {
-  const { register, handleSubmit, control, reset, watch, formState: { errors, isSubmitting } } = useForm<SaleOrderFormData>({
+export function SaleOrderForm({ open, onClose, onSave, customers, inventory, order, onCustomerAdded }: Props) {
+  const [addingCustomer,     setAddingCustomer]     = useState(false)
+  const [newCustomerName,    setNewCustomerName]    = useState('')
+  const [newCustomerMarket,  setNewCustomerMarket]  = useState('ישראל')
+  const [addingCustomerBusy, setAddingCustomerBusy] = useState(false)
+
+  const { register, handleSubmit, control, reset, watch, setValue, formState: { errors, isSubmitting } } = useForm<SaleOrderFormData>({
     resolver: zodResolver(schema) as Resolver<SaleOrderFormData>,
     defaultValues: { order_date: todayISO(), items: [emptyItem()] },
   })
@@ -100,6 +106,20 @@ export function SaleOrderForm({ open, onClose, onSave, customers, inventory, ord
 
   const currencySymbol = selectedCustomer?.currency === 'USD' ? '$' : selectedCustomer?.currency === 'EUR' ? '€' : '₪'
 
+  async function handleAddCustomer() {
+    const name = newCustomerName.trim()
+    if (!name || !onCustomerAdded) return
+    setAddingCustomerBusy(true)
+    const customer = await onCustomerAdded(name, newCustomerMarket)
+    setAddingCustomerBusy(false)
+    if (customer) {
+      setValue('customer_id', customer.id)
+      setAddingCustomer(false)
+      setNewCustomerName('')
+      setNewCustomerMarket('ישראל')
+    }
+  }
+
   const onSubmit = async (data: SaleOrderFormData) => {
     await onSave(data)
     onClose()
@@ -107,7 +127,7 @@ export function SaleOrderForm({ open, onClose, onSave, customers, inventory, ord
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" dir="rtl">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-4xl max-h-[90vh] overflow-y-auto overflow-x-hidden" dir="rtl">
         <DialogHeader>
           <DialogTitle>{order ? 'עריכת הזמנה' : 'הזמנה חדשה'}</DialogTitle>
         </DialogHeader>
@@ -117,13 +137,50 @@ export function SaleOrderForm({ open, onClose, onSave, customers, inventory, ord
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <Label>לקוח *</Label>
-              <select {...register('customer_id', { valueAsNumber: true })} className={selectCls}>
-                <option value="">בחר לקוח...</option>
-                {customers.map(c => (
-                  <option key={c.id} value={c.id}>{c.name} {c.market === 'חו"ל' ? '🌍' : ''}</option>
-                ))}
-              </select>
+              <Controller control={control} name="customer_id"
+                render={({ field }) => (
+                  <select className={selectCls} value={field.value ?? ''}
+                    onChange={e => {
+                      if (e.target.value === '__new__') { setAddingCustomer(true); return }
+                      field.onChange(e.target.value ? Number(e.target.value) : undefined)
+                    }}>
+                    <option value="">בחר לקוח...</option>
+                    {customers.map(c => (
+                      <option key={c.id} value={c.id}>{c.name} {c.market === 'חו"ל' ? '🌍' : ''}</option>
+                    ))}
+                    {onCustomerAdded && <option value="__new__">+ הוסף לקוח חדש</option>}
+                  </select>
+                )}
+              />
               {errors.customer_id && <p className="text-xs text-destructive">{errors.customer_id.message}</p>}
+              {addingCustomer && (
+                <div className="flex flex-col gap-1.5 mt-1 p-2 border border-green-200 rounded-lg bg-green-50">
+                  <input
+                    autoFocus
+                    type="text"
+                    value={newCustomerName}
+                    onChange={e => setNewCustomerName(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddCustomer() } if (e.key === 'Escape') { setAddingCustomer(false); setNewCustomerName('') } }}
+                    placeholder="שם לקוח חדש..."
+                    className="h-8 rounded-lg border border-green-400 px-2 text-sm outline-none focus:ring-2 focus:ring-green-500/20 bg-white"
+                  />
+                  <div className="flex gap-1.5">
+                    <select value={newCustomerMarket} onChange={e => setNewCustomerMarket(e.target.value)}
+                      className="flex-1 h-8 rounded-lg border border-green-300 px-2 text-sm bg-white">
+                      <option value="ישראל">ישראל</option>
+                      <option value='חו"ל'>חו&quot;ל</option>
+                    </select>
+                    <button type="button" onClick={handleAddCustomer} disabled={addingCustomerBusy || !newCustomerName.trim()}
+                      className="flex-shrink-0 h-8 px-3 bg-green-600 text-white rounded-lg text-xs font-medium disabled:opacity-50 hover:bg-green-700">
+                      {addingCustomerBusy ? '...' : 'שמור'}
+                    </button>
+                    <button type="button" onClick={() => { setAddingCustomer(false); setNewCustomerName('') }}
+                      className="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-400 hover:text-gray-600">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="space-y-1">
               <Label>תאריך הזמנה *</Label>
@@ -147,7 +204,7 @@ export function SaleOrderForm({ open, onClose, onSave, customers, inventory, ord
 
             <div className="space-y-2">
               {/* Table header */}
-              <div className="grid grid-cols-[1fr_100px_90px_80px_80px_1fr_32px] gap-2 text-xs text-muted-foreground px-1">
+              <div className="grid grid-cols-[2fr_80px_75px_68px_68px_2fr_28px] gap-2 text-xs text-muted-foreground px-1">
                 <span>גדר</span><span>אורך</span><span>טריות</span><span>כמות</span><span>מחיר</span><span>הערה</span><span></span>
               </div>
 
@@ -160,7 +217,7 @@ export function SaleOrderForm({ open, onClose, onSave, customers, inventory, ord
 
                 return (
                   <div key={field.id} className="space-y-1">
-                    <div className="grid grid-cols-[1fr_100px_90px_80px_80px_1fr_32px] gap-2 items-center">
+                    <div className="grid grid-cols-[2fr_80px_75px_68px_68px_2fr_28px] gap-2 items-center">
                       <select {...register(`items.${idx}.grade`)} className={selectCls}>
                         {NON_REJECT_GRADES.map(g => <option key={g} value={g}>{g}</option>)}
                       </select>
@@ -207,7 +264,7 @@ export function SaleOrderForm({ open, onClose, onSave, customers, inventory, ord
                     </div>
 
                     {/* Available stock + row total */}
-                    <div className="grid grid-cols-[1fr_100px_90px_80px_80px_1fr_32px] gap-2 px-1">
+                    <div className="grid grid-cols-[2fr_80px_75px_68px_68px_2fr_28px] gap-2 px-1">
                       <span className={`text-xs col-span-3 ${available === 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
                         מלאי זמין: {available.toLocaleString('he-IL')}
                       </span>
