@@ -27,7 +27,7 @@ function grpSum(qtys: Array<{ grade: string; quantity: number }>, names: string[
   return qtys.filter(q => names.includes(q.grade)).reduce((s, q) => s + q.quantity, 0)
 }
 
-function buildCardHtml(
+export function buildCardHtml(
   event: SortingEvent,
   suppliers: Supplier[],
   fields: Field[],
@@ -65,65 +65,64 @@ function buildCardHtml(
 <div style="width:380px;min-width:380px;max-width:380px;font-family:Arial,sans-serif;background:#fff;border-radius:12px;overflow:hidden;border:0.5px solid #ddd;direction:ltr;">
 
   <!-- HEADER -->
-  <div style="background:#1a5c2a;padding:16px 16px;display:table;width:100%;box-sizing:border-box;">
-    <div style="display:table-cell;width:90px;vertical-align:middle;">
+  <table style="width:100%;border-collapse:collapse;background:#1a5c2a;" cellpadding="0" cellspacing="0"><tr>
+    <td style="width:90px;padding:16px;vertical-align:middle;">
       <div style="background:rgba(134,239,172,0.3);color:#bbf7d0;font-size:13px;font-weight:700;padding:4px 10px;border-radius:8px;display:inline-block;">#${event.sort_serial}</div>
-      ${event.warehouse_code ? `<div style="font-size:11px;color:rgba(255,255,255,0.75);">גוף ${event.warehouse_code}</div>` : ''}
-    </div>
-    <div style="display:table-cell;vertical-align:middle;text-align:right;">
-      <div style="font-size:20px;font-weight:700;color:#fff;">${fieldName}</div>
-      <div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:4px;">${dateStr} · ${event.length_type} · ${event.freshness_type}</div>
-    </div>
-  </div>
+      ${event.warehouse_code ? `<div style="font-size:11px;color:rgba(255,255,255,0.75);margin-top:2px;">גוף ${event.warehouse_code}</div>` : ''}
+    </td>
+    <td style="padding:16px 16px 16px 0;vertical-align:middle;text-align:right;">
+      <div style="font-size:20px;font-weight:700;color:#fff;line-height:1;margin-bottom:2px;">${fieldName}</div>
+      <div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px;line-height:1;">${dateStr} · ${event.length_type} · ${event.freshness_type}</div>
+    </td>
+  </tr></table>
 
   <!-- 3 חתכים -->
-  <div style="display:table;width:100%;border-bottom:1px solid #eee;table-layout:fixed;">
-    <div style="display:table-cell;padding:10px 12px;text-align:center;border-left:1px solid #eee;">
-      <div style="font-size:11px;color:#777;margin-bottom:4px;">כשר+שחור</div>
-      <div style="font-size:18px;font-weight:700;color:#6b7280;">${kosherblackPct}%</div>
-    </div>
-    <div style="display:table-cell;padding:10px 12px;text-align:center;border-left:1px solid #eee;">
-      <div style="font-size:11px;color:#777;margin-bottom:4px;">כסף2+כתום</div>
-      <div style="font-size:18px;font-weight:700;color:#ea580c;">${silver2orangePct}%</div>
-    </div>
-    <div style="display:table-cell;padding:10px 12px;text-align:center;">
-      <div style="font-size:11px;color:#777;margin-bottom:4px;">לבן+כסף</div>
-      <div style="font-size:18px;font-weight:700;color:#16a34a;">${whitesilverPct}%</div>
-    </div>
-  </div>
+  <table style="width:100%;border-collapse:collapse;table-layout:fixed;border-bottom:1px solid #d1fae5;background:#f0fdf4;" cellpadding="0" cellspacing="0"><tr>
+    <td style="padding:10px 12px;text-align:center;border-left:1px solid #d1fae5;vertical-align:middle;">
+      <div style="font-size:11px;color:#777;margin-bottom:2px;line-height:1;">כשר+שחור</div>
+      <div style="font-size:18px;font-weight:700;color:#6b7280;line-height:1;">${kosherblackPct}%</div>
+    </td>
+    <td style="padding:10px 12px;text-align:center;border-left:1px solid #eee;vertical-align:middle;">
+      <div style="font-size:11px;color:#777;margin-bottom:2px;line-height:1;">כסף2+כתום</div>
+      <div style="font-size:18px;font-weight:700;color:#ea580c;line-height:1;">${silver2orangePct}%</div>
+    </td>
+    <td style="padding:10px 12px;text-align:center;vertical-align:middle;">
+      <div style="font-size:11px;color:#777;margin-bottom:2px;line-height:1;">לבן+כסף</div>
+      <div style="font-size:18px;font-weight:700;color:#16a34a;line-height:1;">${whitesilverPct}%</div>
+    </td>
+  </tr></table>
 
   <!-- שורות רמות -->
   <div style="padding:8px 0;">
     ${gradeRows.map(grade => `
-    <table style="width:100%;border-collapse:collapse;padding:0 12px;" cellpadding="0" cellspacing="0"><tr>
-      <td style="width:52px;font-size:13px;color:#222;text-align:right;padding:4px 12px 4px 0;white-space:nowrap;">${grade.name}</td>
-      <td style="width:12px;padding:0 2px;"><div style="width:8px;height:8px;border-radius:50%;background:${grade.color};margin:auto;"></div></td>
-      <td style="padding:0 4px;"><div style="height:6px;background:#f0f0f0;border-radius:3px;"><div style="float:right;width:${grade.pct}%;height:6px;background:${grade.color};border-radius:3px;"></div></div></td>
-      <td style="width:54px;font-size:13px;font-weight:700;color:#222;text-align:left;padding:4px 0 4px 4px;">${grade.count.toLocaleString()}</td>
-      <td style="width:34px;font-size:12px;color:#888;text-align:left;padding:4px 0;">${grade.pct}%</td>
+    <table style="width:100%;border-collapse:collapse;border-bottom:1px solid #f3f4f6;" cellpadding="0" cellspacing="0"><tr>
+      <td style="width:34px;font-size:11px;color:#aaa;text-align:right;padding:6px 0 3px 8px;vertical-align:middle;line-height:1;">${grade.pct}%</td>
+      <td style="width:54px;font-size:13px;font-weight:700;color:#333;text-align:right;padding:6px 3px 3px;vertical-align:middle;line-height:1;">${grade.count.toLocaleString()}</td>
+      <td style="padding:0 6px;vertical-align:middle;"><div style="height:5px;background:#f0f0f0;border-radius:3px;direction:rtl;overflow:hidden;"><div style="display:inline-block;width:${grade.pct}%;height:5px;background:${grade.color};border-radius:3px;vertical-align:top;"></div></div></td>
+      <td style="width:14px;text-align:center;vertical-align:middle;padding:0 2px;"><div style="width:8px;height:8px;border-radius:50%;background:${grade.color};margin:auto;"></div></td>
+      <td style="width:52px;font-size:13px;color:#222;text-align:right;padding:6px 8px 3px 0;white-space:nowrap;vertical-align:middle;line-height:1;">${grade.name}</td>
     </tr></table>`).join('')}
   </div>
 
   <!-- פסולים (רק אם יש) -->
   ${rejectActive.length > 0 ? `
-  <div style="padding:6px 12px 10px;border-top:1px solid #f0f0f0;overflow:hidden;">
-    <div style="float:right;font-size:12px;color:#888;">פסולים · <span style="color:#ea580c;font-weight:600;">${rejectsPct}%</span></div>
-    <div style="font-size:12px;color:#555;text-align:left;">
-      ${rejectActive.map((r, i) => `${r.name} ${getQ(r.name).toLocaleString()}${i < rejectActive.length - 1 ? ' · ' : ''}`).join('')}
-    </div>
-  </div>` : ''}
+  <table style="width:100%;border-collapse:collapse;border-top:1px solid #f0f0f0;" cellpadding="0" cellspacing="0"><tr>
+    <td style="padding:5px 10px;font-size:11px;color:#888;text-align:left;white-space:nowrap;vertical-align:middle;">בלאי · <span style="color:#ea580c;font-weight:600;">${rejectsPct}%</span></td>
+    <td style="padding:5px 10px;font-size:11px;color:#555;text-align:right;white-space:nowrap;direction:rtl;vertical-align:middle;">
+      ${rejectActive.map((r, i) => `‏${r.name} ${getQ(r.name).toLocaleString()}‏${i < rejectActive.length - 1 ? ` <span style="font-size:16px;color:#bbb;vertical-align:middle;">&#xB7;</span> ` : ''}`).join('')}
+    </td>
+  </tr></table>` : ''}
 
   <!-- FOOTER -->
-  <div style="padding:12px 16px;display:table;width:100%;box-sizing:border-box;border-top:1px solid #eee;background:#fafafa;">
-    <div style="display:table-cell;vertical-align:middle;width:120px;">
-      <div style="background:#dcfce7;color:#15803d;font-size:13px;font-weight:600;padding:6px 14px;border-radius:20px;margin-top:4px;">
-      &#10003; ${event.status_type || 'בסיסי'}
-    </div></div>
-    <div style="display:table-cell;vertical-align:middle;text-align:right;">
-      <div style="font-size:12px;color:#777;">סה&quot;כ לולבים</div>
-      <div style="font-size:26px;font-weight:700;color:#16a34a;line-height:1.1;">${total.toLocaleString()}</div>
-    </div>
-  </div>
+  <table style="width:100%;border-collapse:collapse;border-top:1px solid #eee;background:#fafafa;" cellpadding="0" cellspacing="0"><tr>
+    <td style="width:120px;padding:12px 16px;vertical-align:middle;">
+      <div style="background:#dcfce7;color:#15803d;font-size:13px;font-weight:600;padding:6px 14px;border-radius:20px;display:inline-block;">&#10003; ${event.status_type || 'בסיסי'}</div>
+    </td>
+    <td style="padding:12px 16px 12px 0;vertical-align:middle;text-align:right;">
+      <div style="font-size:12px;color:#777;line-height:1;">סה&quot;כ לולבים</div>
+      <div style="font-size:26px;font-weight:700;color:#16a34a;line-height:1.15;">${total.toLocaleString()}</div>
+    </td>
+  </tr></table>
 
 </div>`
 }
