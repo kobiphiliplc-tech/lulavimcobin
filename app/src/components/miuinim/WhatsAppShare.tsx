@@ -61,13 +61,36 @@ export function buildCardHtml(
   const kosherblackPct   = pct(lowTotal)
   const rejectsPct       = pct(rejectTotal)
 
+  const isMukdam = event.freshness_type === 'מוקדם'
+  const theme = isMukdam
+    ? {
+        headerBg:        '#9a3412',
+        badgeBg:         'rgba(253,186,116,0.3)',
+        badgeText:       '#fed7aa',
+        sectionBg:       '#fff7ed',
+        sectionBorder:   '#fed7aa',
+        statusBadgeBg:   '#ffedd5',
+        statusBadgeText: '#c2410c',
+        totalText:       '#ea580c',
+      }
+    : {
+        headerBg:        '#1a5c2a',
+        badgeBg:         'rgba(134,239,172,0.3)',
+        badgeText:       '#bbf7d0',
+        sectionBg:       '#f0fdf4',
+        sectionBorder:   '#d1fae5',
+        statusBadgeBg:   '#dcfce7',
+        statusBadgeText: '#15803d',
+        totalText:       '#16a34a',
+      }
+
   return `
 <div style="width:380px;min-width:380px;max-width:380px;font-family:Arial,sans-serif;background:#fff;border-radius:12px;overflow:hidden;border:0.5px solid #ddd;direction:ltr;">
 
   <!-- HEADER -->
-  <table style="width:100%;border-collapse:collapse;background:#1a5c2a;" cellpadding="0" cellspacing="0"><tr>
+  <table style="width:100%;border-collapse:collapse;background:${theme.headerBg};" cellpadding="0" cellspacing="0"><tr>
     <td style="width:90px;padding:16px;vertical-align:middle;">
-      <div style="background:rgba(134,239,172,0.3);color:#bbf7d0;font-size:13px;font-weight:700;padding:4px 10px;border-radius:8px;display:inline-block;">${event.sort_serial}</div>
+      <div style="background:${theme.badgeBg};color:${theme.badgeText};font-size:13px;font-weight:700;padding:4px 10px;border-radius:8px;display:inline-block;">${event.sort_serial}</div>
       ${event.warehouse_code ? `<div style="font-size:11px;color:rgba(255,255,255,0.75);margin-top:2px;">גוף ${event.warehouse_code}</div>` : ''}
       ${event.notes ? `<div style="font-size:11px;color:rgba(255,255,255,0.82);margin-top:3px;line-height:1.3;">${event.notes}</div>` : ''}
     </td>
@@ -78,8 +101,8 @@ export function buildCardHtml(
   </tr></table>
 
   <!-- 3 חתכים -->
-  <table style="width:100%;border-collapse:collapse;table-layout:fixed;border-bottom:1px solid #d1fae5;background:#f0fdf4;" cellpadding="0" cellspacing="0"><tr>
-    <td style="padding:10px 12px;text-align:center;border-left:1px solid #d1fae5;vertical-align:middle;">
+  <table style="width:100%;border-collapse:collapse;table-layout:fixed;border-bottom:1px solid ${theme.sectionBorder};background:${theme.sectionBg};" cellpadding="0" cellspacing="0"><tr>
+    <td style="padding:10px 12px;text-align:center;border-left:1px solid ${theme.sectionBorder};vertical-align:middle;">
       <div style="font-size:11px;color:#777;margin-bottom:2px;line-height:1;">כשר+שחור</div>
       <div style="font-size:18px;font-weight:700;color:#6b7280;line-height:1;">${kosherblackPct}%</div>
     </td>
@@ -117,11 +140,11 @@ export function buildCardHtml(
   <!-- FOOTER -->
   <table style="width:100%;border-collapse:collapse;border-top:1px solid #eee;background:#fafafa;" cellpadding="0" cellspacing="0"><tr>
     <td style="width:120px;padding:12px 16px;vertical-align:middle;">
-      <div style="background:#dcfce7;color:#15803d;font-size:13px;font-weight:600;padding:6px 14px;border-radius:20px;display:inline-block;">&#10003; ${event.status_type || 'בסיסי'}</div>
+      <div style="background:${theme.statusBadgeBg};color:${theme.statusBadgeText};font-size:13px;font-weight:600;padding:6px 14px;border-radius:20px;display:inline-block;">&#10003; ${event.status_type || 'בסיסי'}</div>
     </td>
     <td style="padding:12px 16px 12px 0;vertical-align:middle;text-align:right;">
       <div style="font-size:12px;color:#777;line-height:1;">סה&quot;כ לולבים</div>
-      <div style="font-size:26px;font-weight:700;color:#16a34a;line-height:1.15;">${total.toLocaleString()}</div>
+      <div style="font-size:26px;font-weight:700;color:${theme.totalText};line-height:1.15;">${total.toLocaleString()}</div>
     </td>
   </tr></table>
 
