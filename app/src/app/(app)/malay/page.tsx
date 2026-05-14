@@ -289,11 +289,11 @@ export default function MalayPage() {
   async function handleSaveCustomer(data: { name: string; phone?: string; market: 'ישראל' | 'חו"ל'; currency: 'ILS' | 'USD' | 'EUR'; notes?: string }) {
     if (editingCustomer) {
       const { error } = await supabase.from('customers').update({ ...data, phone: data.phone || null, notes: data.notes || null }).eq('id', editingCustomer.id)
-      if (error) { toast.error('שגיאה בעדכון לקוח'); return }
+      if (error) { console.error('customer update error:', error); toast.error(`שגיאה בעדכון לקוח: ${error.message}`); return }
       toast.success('לקוח עודכן')
     } else {
       const { error } = await supabase.from('customers').insert({ ...data, phone: data.phone || null, notes: data.notes || null })
-      if (error) { toast.error('שגיאה בשמירת לקוח'); return }
+      if (error) { console.error('customer insert error:', error); toast.error(`שגיאה בשמירת לקוח: ${error.message}`); return }
       toast.success('לקוח נוסף')
     }
     setEditingCustomer(null)

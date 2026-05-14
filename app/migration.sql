@@ -58,3 +58,69 @@ from (values
 ) as f(name, code, sup_name)
 join sup on sup.name = f.sup_name
 on conflict do nothing;
+
+-- ====== Migration: מודול מכירות ======
+alter table customers
+  add column if not exists currency text default 'ILS',
+  add column if not exists market   text default 'ישראל';
+
+create table if not exists sale_orders (
+  id           serial primary key,
+  season       text not null,
+  customer_id  int references customers(id),
+  order_date   date not null,
+  status       text default 'pending',
+  currency     text default 'ILS',
+  total_amount numeric,
+  notes        text
+);
+
+create table if not exists sale_order_items (
+  id               serial primary key,
+  order_id         int references sale_orders(id),
+  grade            text not null,
+  length_type      text,
+  freshness_type   text,
+  quantity_ordered int not null default 0,
+  quantity_ready   int not null default 0,
+  quantity_packed  int not null default 0,
+  unit_price       numeric,
+  total_price      numeric,
+  notes            text
+);
+
+create table if not exists customer_payments (
+  id             serial primary key,
+  customer_id    int references customers(id),
+  order_id       int references sale_orders(id),
+  season         text not null,
+  payment_date   date not null,
+  method         text,
+  amount         numeric,
+  currency       text default 'ILS',
+  check_number   text,
+  check_due_date date,
+  notes          text
+);
+
+-- ====== RLS policies: מודול מכירות ======
+alter table customers       enable row level security;
+alter table sale_orders     enable row level security;
+alter table sale_order_items enable row level security;
+alter table customer_payments enable row level security;
+
+drop policy if exists "authenticated full access" on customers;
+create policy "authenticated full access" on customers
+  for all to authenticated using (true) with check (true);
+
+drop policy if exists "authenticated full access" on sale_orders;
+create policy "authenticated full access" on sale_orders
+  for all to authenticated using (true) with check (true);
+
+drop policy if exists "authenticated full access" on sale_order_items;
+create policy "authenticated full access" on sale_order_items
+  for all to authenticated using (true) with check (true);
+
+drop policy if exists "authenticated full access" on customer_payments;
+create policy "authenticated full access" on customer_payments
+  for all to authenticated using (true) with check (true);
