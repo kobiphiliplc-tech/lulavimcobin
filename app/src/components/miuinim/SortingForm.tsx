@@ -10,7 +10,7 @@ import { GRADES, LENGTH_TYPES, FRESHNESS_TYPES, GRADE_GROUP_TOP, GRADE_GROUP_MID
 import type { SortingEvent, Supplier, Field, ReceivingOrder, Grade } from '@/lib/types'
 import { useMemo, useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
-import { Plus, X } from 'lucide-react'
+import { X } from 'lucide-react'
 
 function todayISO() {
   const d = new Date()
@@ -252,7 +252,7 @@ export function SortingForm({
       midPctNet:   Math.round((mid   / netBase) * 100),
       lowerPctNet: Math.round((lower / netBase) * 100),
     }
-  }, [quantities])
+  }, [quantities, gradeList])
 
   function getQty(gradeName: string) {
     return Number(quantities.find(q => q.grade === gradeName)?.quantity || 0)
