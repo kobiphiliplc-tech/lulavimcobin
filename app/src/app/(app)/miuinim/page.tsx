@@ -16,6 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SortingForm } from '@/components/miuinim/SortingForm'
 import { WhatsAppShareDialog } from '@/components/miuinim/WhatsAppShare'
+import { SortingTable } from '@/components/miuinim/SortingTable'
 import {
   GRADES, LENGTH_TYPES, FRESHNESS_TYPES,
   GRADE_GROUP_TOP, GRADE_GROUP_MID, GRADE_GROUP_LOWER, GRADE_GROUP_REJECT,
@@ -380,7 +381,7 @@ export default function MiuinimPage() {
   const [filterLength,    setFilterLength]    = useState('all')
   const [filterFreshness, setFilterFreshness] = useState('all')
   const [page,            setPage]            = useState(0)
-  const [activeTab,       setActiveTab]       = useState<'list' | 'pivot' | 'missing'>('list')
+  const [activeTab,       setActiveTab]       = useState<'list' | 'table' | 'pivot' | 'missing'>('list')
   const [expandedIds,     setExpandedIds]     = useState<Set<number>>(new Set())
   const [selectedIds,     setSelectedIds]     = useState<Set<number>>(new Set())
   const [selectionMode,   setSelectionMode]   = useState(false)
@@ -748,9 +749,10 @@ export default function MiuinimPage() {
         </Button>
       </div>
 
-      <Tabs value={activeTab} onValueChange={v => setActiveTab(v as 'list' | 'pivot' | 'missing')}>
+      <Tabs value={activeTab} onValueChange={v => setActiveTab(v as 'list' | 'table' | 'pivot' | 'missing')}>
         <TabsList className="mb-2">
           <TabsTrigger value="list">כרטיסי מיון</TabsTrigger>
+          <TabsTrigger value="table">טבלה</TabsTrigger>
           <TabsTrigger value="pivot">טבלת ציר</TabsTrigger>
           <TabsTrigger value="missing" className="gap-1">
             שיוכים חסרים
@@ -889,6 +891,17 @@ export default function MiuinimPage() {
               </div>
             </div>
           )}
+        </TabsContent>
+
+        {/* ── TABLE TAB ── */}
+        <TabsContent value="table" className="mt-0">
+          <SortingTable
+            events={filteredEvents}
+            suppliers={suppliers}
+            fields={fields}
+            receivingOrders={receivingOrders}
+            grades={gradesList}
+          />
         </TabsContent>
 
         {/* ── PIVOT TAB ── */}
