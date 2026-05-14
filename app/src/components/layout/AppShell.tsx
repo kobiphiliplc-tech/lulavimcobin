@@ -8,6 +8,7 @@ import { Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Toaster } from '@/components/ui/sonner'
 import NoScrollNumbers from './NoScrollNumbers'
+import { OfflineStatusBanner } from './OfflineStatusBanner'
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
@@ -37,6 +38,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <OnlineIndicator />
         </header>
 
+        <OfflineStatusBanner />
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
           {children}
         </main>

@@ -24,6 +24,7 @@ import type { SortingEvent, Supplier, Field, ReceivingOrder, Grade } from '@/lib
 import { toast } from 'sonner'
 import { Plus, Pencil, Trash2, Copy } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { cacheRows, getCachedRows, upsertCachedRow, removeCachedRow, queueAction } from '@/lib/db/offline'
 
 const PAGE_SIZE = 20
 
@@ -367,6 +368,7 @@ export default function MiuinimPage() {
   const [receivingOrders, setReceivingOrders] = useState<ReceivingOrder[]>([])
   const [gradesList,      setGradesList]      = useState<Grade[]>([])
   const [loading,         setLoading]         = useState(true)
+  const [isFromCache,     setIsFromCache]     = useState(false)
   const [dialogOpen,      setDialogOpen]      = useState(false)
   const [editing,         setEditing]         = useState<SortingEvent | undefined>()
   const [nextSerial,      setNextSerial]      = useState<number | undefined>()
@@ -384,8 +386,27 @@ export default function MiuinimPage() {
   const [selectionMode,   setSelectionMode]   = useState(false)
   const [waShareOpen,     setWaShareOpen]     = useState(false)
 
+  const loadFromCache = useCallback(async () => {
+    if (!activeSeason) return
+    const [cachedEvents, cachedSuppliers, cachedFields, cachedOrders] = await Promise.all([
+      getCachedRows('cached_sorting_events', activeSeason),
+      getCachedRows('cached_suppliers'),
+      getCachedRows('cached_fields'),
+      getCachedRows('cached_receiving_orders', activeSeason),
+    ])
+    if (cachedEvents.length > 0) {
+      setEvents(cachedEvents as unknown as SortingEvent[])
+      setIsFromCache(true)
+      setLoading(false)
+    }
+    if (cachedSuppliers.length > 0) setSuppliers(cachedSuppliers as unknown as Supplier[])
+    if (cachedFields.length > 0)    setFields(cachedFields as unknown as Field[])
+    if (cachedOrders.length > 0)    setReceivingOrders(cachedOrders as unknown as ReceivingOrder[])
+  }, [activeSeason])
+
   const fetchAll = useCallback(async () => {
     if (!activeSeason) return
+    if (!navigator.onLine) { setLoading(false); return }
     setLoading(true)
     const [evRes, supRes, fldRes, ordRes, gradeRes] = await Promise.all([
       supabase.from('sorting_events')
@@ -406,36 +427,72 @@ export default function MiuinimPage() {
     if (fldRes.error) console.error('[miuinim] fields:', fldRes.error)
     if (ordRes.error) console.error('[miuinim] orders:', ordRes.error)
 
-    if (evRes.data)    setEvents(evRes.data as SortingEvent[])
-    if (supRes.data)   setSuppliers(supRes.data)
-    if (fldRes.data)   setFields(fldRes.data)
-    if (ordRes.data)   setReceivingOrders(ordRes.data as unknown as ReceivingOrder[])
+    if (evRes.data) {
+      setEvents(evRes.data as SortingEvent[])
+      setIsFromCache(false)
+      await cacheRows('cached_sorting_events', evRes.data as unknown as Record<string, unknown>[], activeSeason)
+    }
+    if (supRes.data) {
+      setSuppliers(supRes.data)
+      await cacheRows('cached_suppliers', supRes.data as Record<string, unknown>[])
+    }
+    if (fldRes.data) {
+      setFields(fldRes.data)
+      await cacheRows('cached_fields', fldRes.data as Record<string, unknown>[])
+    }
+    if (ordRes.data) {
+      setReceivingOrders(ordRes.data as unknown as ReceivingOrder[])
+      await cacheRows('cached_receiving_orders', ordRes.data as unknown as Record<string, unknown>[], activeSeason)
+    }
     if (gradeRes.data && gradeRes.data.length > 0) setGradesList(gradeRes.data as Grade[])
 
     setLoading(false)
   }, [supabase, activeSeason])
 
-  useEffect(() => { fetchAll() }, [fetchAll])
+  useEffect(() => {
+    loadFromCache().then(() => fetchAll())
+  }, [loadFromCache, fetchAll])
+
+  useEffect(() => {
+    const onSync = () => fetchAll()
+    window.addEventListener('lulab:synced', onSync)
+    return () => window.removeEventListener('lulab:synced', onSync)
+  }, [fetchAll])
+
   useEffect(() => { setPage(0) }, [globalFilter, filterSupplier, filterLength, filterFreshness])
 
   function seasonBase() {
     return parseInt(activeSeason.slice(-2), 10) * 1000
   }
 
+  function computeNextSerial(remoteMax?: number) {
+    const localMax = events.length > 0 ? Math.max(...events.map(e => e.sort_serial)) : 0
+    const base = seasonBase() + 1
+    return Math.max(localMax + 1, remoteMax ? remoteMax + 1 : 0, base)
+  }
+
   async function openNew() {
     setEditing(undefined)
-    const { data } = await supabase
-      .from('sorting_events').select('sort_serial').order('sort_serial', { ascending: false }).limit(1).maybeSingle()
-    setNextSerial(data ? Math.max(data.sort_serial + 1, seasonBase() + 1) : seasonBase() + 1)
+    if (navigator.onLine) {
+      const { data } = await supabase
+        .from('sorting_events').select('sort_serial').order('sort_serial', { ascending: false }).limit(1).maybeSingle()
+      setNextSerial(computeNextSerial(data?.sort_serial))
+    } else {
+      setNextSerial(computeNextSerial())
+    }
     setDialogOpen(true)
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async function openDuplicate(_event: SortingEvent) {
     setEditing(undefined)
-    const { data } = await supabase
-      .from('sorting_events').select('sort_serial').order('sort_serial', { ascending: false }).limit(1).maybeSingle()
-    setNextSerial(data ? Math.max(data.sort_serial + 1, seasonBase() + 1) : seasonBase() + 1)
+    if (navigator.onLine) {
+      const { data } = await supabase
+        .from('sorting_events').select('sort_serial').order('sort_serial', { ascending: false }).limit(1).maybeSingle()
+      setNextSerial(computeNextSerial(data?.sort_serial))
+    } else {
+      setNextSerial(computeNextSerial())
+    }
     setDialogOpen(true)
   }
 
@@ -445,6 +502,41 @@ export default function MiuinimPage() {
     const { quantities, ...eventData } = data
     const payload = { ...eventData, season: activeSeason }
 
+    // ── OFFLINE PATH ─────────────────────────────────────────────────────────
+    if (!navigator.onLine) {
+      if (editing && editing.id !== 0) {
+        // Edit offline: queue update + quantities replace
+        await queueAction({ table: 'sorting_events', operation: 'update', payload: { id: editing.id, ...payload } })
+        const updatedQtys = quantities.filter(q => q.quantity > 0).map(q => ({ ...q, sorting_event_id: editing.id }))
+        const updatedEvent: SortingEvent = { ...editing, ...payload, sorting_quantities: updatedQtys }
+        await upsertCachedRow('cached_sorting_events', updatedEvent as unknown as Record<string, unknown>)
+        setEvents(prev => prev.map(e => e.id === editing.id ? updatedEvent : e))
+        toast.info('עדכון נשמר מקומית — יסונכרן כשיחזור החיבור')
+      } else {
+        // New event offline: use temp ID
+        const tempId = -Date.now()
+        const filteredQtys = quantities.filter(q => q.quantity > 0)
+        const newEvent: SortingEvent = {
+          ...payload,
+          id: tempId,
+          sort_serial: nextSerial ?? computeNextSerial(),
+          sorting_quantities: filteredQtys.map(q => ({ ...q, sorting_event_id: tempId, id: -(Date.now() + Math.random()) })),
+        } as unknown as SortingEvent
+        await queueAction({
+          table: 'sorting_events',
+          operation: 'insert',
+          payload: { ...payload, _tempId: tempId, items: filteredQtys },
+        })
+        await upsertCachedRow('cached_sorting_events', newEvent as unknown as Record<string, unknown>)
+        setEvents(prev => [newEvent, ...prev])
+        toast.info('מיון נשמר מקומית — יסונכרן כשיחזור החיבור')
+      }
+      setDialogOpen(false)
+      setEditing(undefined)
+      return
+    }
+
+    // ── ONLINE PATH ───────────────────────────────────────────────────────────
     let eventId: number
 
     if (editing && editing.id !== 0) {
@@ -526,6 +618,17 @@ export default function MiuinimPage() {
 
   async function handleDelete(event: SortingEvent) {
     if (!confirm(`למחוק מיון מס׳ ${event.sort_serial}?`)) return
+
+    // Optimistic remove from local state + cache immediately
+    setEvents(prev => prev.filter(e => e.id !== event.id))
+    await removeCachedRow('cached_sorting_events', event.id)
+
+    if (!navigator.onLine) {
+      await queueAction({ table: 'sorting_events', operation: 'delete', payload: { id: event.id } })
+      toast.info('מחיקה נשמרה מקומית — תסונכרן כשיחזור החיבור')
+      return
+    }
+
     for (const q of event.sorting_quantities ?? []) {
       if (q.quantity > 0) await upsertInventory(q.grade, event.length_type, event.freshness_type, -q.quantity)
     }
@@ -630,7 +733,14 @@ export default function MiuinimPage() {
     <div className="space-y-4" dir="rtl">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-xl font-bold">מיונים</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold">מיונים</h1>
+            {isFromCache && (
+              <span className="text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 px-2 py-0.5 rounded-full">
+                נתונים שמורים
+              </span>
+            )}
+          </div>
           <p className="text-xs text-gray-400 mt-0.5">עונה: {activeSeason}</p>
         </div>
         <Button className="bg-green-600 hover:bg-green-700" onClick={openNew}>

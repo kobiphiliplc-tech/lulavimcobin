@@ -67,41 +67,35 @@ function buildCardHtml(
     const p   = pct(qty)
     const barW = qty > 0 ? Math.max(p, 2) : 0
     return `<div style="display:flex;align-items:center;height:22px;direction:rtl;">
-      <span style="font-size:12px;font-weight:500;color:#1f2937;width:54px;text-align:right;flex-shrink:0;white-space:nowrap;overflow:hidden;">${g.name}</span>
-      <span style="display:block;width:7px;height:7px;border-radius:50%;background:${g.color};flex-shrink:0;margin:0 6px;border:1px solid rgba(0,0,0,0.1);"></span>
+      <span style="font-size:12px;font-weight:500;color:#1f2937;width:48px;text-align:right;flex-shrink:0;white-space:nowrap;overflow:hidden;">${g.name}</span>
+      <span style="display:block;width:8px;height:8px;border-radius:50%;background:${g.color};flex-shrink:0;margin:0 6px;border:1px solid rgba(0,0,0,0.1);"></span>
       <div style="flex:1;height:3px;background:#efefef;border-radius:2px;position:relative;overflow:hidden;">
         <div style="position:absolute;top:0;right:0;height:100%;width:${barW}%;background:${g.color};border-radius:2px;min-width:${qty>0?'3px':'0'};"></div>
       </div>
-      <span style="font-size:13px;font-weight:700;color:#111;width:50px;text-align:right;flex-shrink:0;padding-right:8px;">${qty.toLocaleString('he-IL')}</span>
-      <span style="font-size:11px;color:#aaa;width:28px;text-align:left;flex-shrink:0;">${p}%</span>
+      <span style="font-size:13px;font-weight:700;color:#111;width:50px;text-align:right;flex-shrink:0;">${qty.toLocaleString('he-IL')}</span>
+      <span style="font-size:11px;color:#aaa;width:32px;text-align:left;flex-shrink:0;">${p}%</span>
     </div>`
   }
 
   const rejectActive   = rejectG.filter(g => getQ(g.name) > 0)
-  const rejectRowsHtml = rejectActive.map(g => {
-    const qty = getQ(g.name)
-    return `<span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:#555;white-space:nowrap;">
-      <span style="display:block;width:5px;height:5px;border-radius:50%;background:${g.color};flex-shrink:0;"></span>
-      ${g.name} <b style="color:#333;">${qty.toLocaleString('he-IL')}</b>
-    </span>`
-  }).join(`<span style="color:#ddd;margin:0 4px;">|</span>`)
+  const rejectRowsHtml = rejectActive.map(g => `${g.name} ${getQ(g.name).toLocaleString('he-IL')}`).join('، ')
 
   const statusBg    = !event.status_type || event.status_type === 'בסיסי' ? '#dcfce7' : '#fef9c3'
   const statusColor = !event.status_type || event.status_type === 'בסיסי' ? '#166534' : '#713f12'
 
   return `
-<div style="width:320px;font-family:Arial,Helvetica,sans-serif;direction:rtl;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.16);">
+<div style="width:380px;font-family:Arial,Helvetica,sans-serif;direction:rtl;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.16);">
 
-  <div style="background:#1a5c2a;color:#fff;padding:14px 16px 12px;">
+  <div style="background:#1a5c2a;color:#fff;padding:16px;">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
       <div style="flex:1;min-width:0;">
-        <div style="font-size:17px;font-weight:700;line-height:1.3;word-break:break-word;">${fieldName}</div>
-        <div style="font-size:11px;opacity:0.8;margin-top:4px;white-space:nowrap;">${dateStr} · ${event.length_type} · ${event.freshness_type}</div>
+        <div style="font-size:20px;font-weight:700;line-height:1.3;word-break:break-word;">${fieldName}</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:4px;white-space:nowrap;">${dateStr} · ${event.length_type} · ${event.freshness_type}</div>
         ${supplierName ? `<div style="font-size:10px;opacity:0.65;margin-top:2px;">${supplierName}</div>` : ''}
       </div>
       <div style="flex-shrink:0;text-align:center;padding-top:2px;">
-        <div style="background:rgba(255,255,255,0.22);border-radius:6px;padding:3px 8px;font-family:monospace;font-size:12px;letter-spacing:0.5px;white-space:nowrap;">#${event.sort_serial}</div>
-        ${event.notes ? `<div style="font-size:10px;opacity:0.7;margin-top:4px;text-align:center;">${event.notes}</div>` : ''}
+        <div style="background:rgba(134,239,172,0.3);border:1px solid rgba(134,239,172,0.5);border-radius:6px;padding:3px 8px;font-family:monospace;font-size:12px;letter-spacing:0.5px;white-space:nowrap;">#${event.sort_serial}</div>
+        ${event.warehouse_code ? `<div style="font-size:11px;opacity:0.75;margin-top:4px;text-align:center;">גוף ${event.warehouse_code}</div>` : ''}
       </div>
     </div>
   </div>
@@ -126,19 +120,19 @@ function buildCardHtml(
     ${rejectTotal > 0 ? `
       <div style="border-top:1px dashed #ddd;margin:8px 0 6px;"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;direction:rtl;">
-        <div style="display:flex;flex-wrap:wrap;gap:6px;direction:rtl;flex:1;">${rejectRowsHtml}</div>
-        <span style="font-size:10px;color:#bbb;flex-shrink:0;white-space:nowrap;padding-right:8px;">${pct(rejectTotal)}% · פסולים</span>
+        <span style="font-size:11px;color:#555;">${rejectRowsHtml}</span>
+        <span style="font-size:10px;color:#bbb;flex-shrink:0;white-space:nowrap;">${pct(rejectTotal)}% · פסולים</span>
       </div>
     ` : ''}
   </div>
 
-  <div style="border-top:1px solid #eee;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;background:#f8faf8;">
+  <div style="border-top:1px solid #eee;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;background:#f8faf8;direction:rtl;">
+    <div style="text-align:right;">
+      <div style="font-size:9px;color:#16a34a;letter-spacing:0.5px;margin-bottom:2px;">סה&quot;כ לולבים</div>
+      <div style="font-size:22px;font-weight:800;color:#16a34a;line-height:1;">${netTotal.toLocaleString('he-IL')}</div>
+    </div>
     <div style="background:${statusBg};color:${statusColor};border-radius:999px;padding:4px 12px;font-size:11px;font-weight:600;white-space:nowrap;">
       ${event.status_type || 'בסיסי'} ✓
-    </div>
-    <div style="text-align:left;">
-      <div style="font-size:9px;color:#aaa;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;">סה&quot;כ לולבים</div>
-      <div style="font-size:22px;font-weight:800;color:#111;line-height:1;">${netTotal.toLocaleString('he-IL')}</div>
     </div>
   </div>
 

@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, ArrowDownToLine, SlidersHorizontal, Package, Settings, LogOut, Users } from 'lucide-react'
+import { LayoutDashboard, ArrowDownToLine, SlidersHorizontal, Package, PackageOpen, Warehouse, Settings, LogOut, Users } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useSeason } from '@/lib/context/SeasonContext'
 import { useRouter } from 'next/navigation'
@@ -12,8 +12,10 @@ const navItems = [
   { href: '/',           label: 'דאשבורד',      icon: LayoutDashboard },
   { href: '/miuinim',    label: 'מיונים',        icon: SlidersHorizontal },
   { href: '/kabala',     label: 'קבלת סחורה',   icon: ArrowDownToLine },
-  { href: '/malay',      label: 'מכירות',         icon: Package },
-  { href: '/suppliers',  label: 'ספקים',          icon: Users },
+  { href: '/arizot',     label: 'אריזות',         icon: PackageOpen },
+  { href: '/inventory',  label: 'מלאי חי',       icon: Warehouse },
+  { href: '/malay',      label: 'מכירות',        icon: Package },
+  { href: '/suppliers',  label: 'ספקים',         icon: Users },
   { href: '/settings',   label: 'הגדרות',        icon: Settings },
 ]
 

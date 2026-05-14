@@ -4,6 +4,7 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'ניהול לולבים',
   description: 'מערכת ניהול מלאי לולבים לחג הסוכות',
+  manifest: '/manifest.json',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
