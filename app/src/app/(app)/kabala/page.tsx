@@ -370,12 +370,19 @@ export default function KabalaPage() {
     const name = newSupplierName.trim()
     if (!name) return
     setAddingSupplierBusy(true)
-    const { data, error } = await supabase.from('suppliers').insert({ name }).select().single()
+    const { data, error } = await supabase
+      .from('suppliers')
+      .upsert({ name }, { onConflict: 'name', ignoreDuplicates: false })
+      .select()
+      .single()
     setAddingSupplierBusy(false)
     if (error || !data) { toast.error('שגיאה בהוספת ספק: ' + error?.message); return }
-    const newSupplier = data as Supplier
-    setSuppliers(prev => [...prev, newSupplier].sort((a, b) => a.name.localeCompare(b.name, 'he')))
-    setValue('supplier_id', newSupplier.id)
+    const supplier = data as Supplier
+    setSuppliers(prev => {
+      if (prev.some(s => s.id === supplier.id)) return prev
+      return [...prev, supplier].sort((a, b) => a.name.localeCompare(b.name, 'he'))
+    })
+    setValue('supplier_id', supplier.id)
     setAddingSupplier(false)
     setNewSupplierName('')
     toast.success(`ספק "${name}" נוסף`)

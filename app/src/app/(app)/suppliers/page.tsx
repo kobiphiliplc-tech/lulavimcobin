@@ -1013,8 +1013,15 @@ function SuppliersInner() {
       if (error) { toast.error('שגיאה: ' + error.message); return }
       toast.success('ספק עודכן')
     } else {
+      const trimmedName = data.name.trim()
+      const { data: existing } = await supabase
+        .from('suppliers')
+        .select('id')
+        .eq('name', trimmedName)
+        .maybeSingle()
+      if (existing) { toast.error('ספק עם שם זה כבר קיים'); return }
       const { error } = await supabase.from('suppliers').insert({
-        name:          data.name,
+        name:          trimmedName,
         contact_phone: data.contact_phone || null,
         notes:         data.notes         || null,
       })

@@ -663,15 +663,20 @@ export default function MiuinimPage() {
   }
 
   async function handleSupplierAdded(name: string): Promise<Supplier | null> {
+    const trimmed = name.trim()
     const { data, error } = await supabase
       .from('suppliers')
-      .insert({ name })
+      .upsert({ name: trimmed }, { onConflict: 'name', ignoreDuplicates: false })
       .select()
       .single()
     if (error || !data) { toast.error('שגיאה בהוספת ספק: ' + error?.message); return null }
-    setSuppliers(prev => [...prev, data as Supplier].sort((a, b) => a.name.localeCompare(b.name, 'he')))
-    toast.success(`ספק "${name}" נוסף`)
-    return data as Supplier
+    const supplier = data as Supplier
+    setSuppliers(prev => {
+      if (prev.some(s => s.id === supplier.id)) return prev
+      return [...prev, supplier].sort((a, b) => a.name.localeCompare(b.name, 'he'))
+    })
+    toast.success(`ספק "${trimmed}" נוסף`)
+    return supplier
   }
 
   async function handleBulkDelete() {
