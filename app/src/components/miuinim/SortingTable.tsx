@@ -114,8 +114,9 @@ export function SortingTable({ events, suppliers, fields, receivingOrders, grade
       const current = prev[key] ?? []
       const next = current.includes(val) ? current.filter(v => v !== val) : [...current, val]
       if (next.length === 0) {
-        const { [key]: _r, ...rest } = prev
-        return rest
+        const next = { ...prev }
+        delete next[key]
+        return next
       }
       return { ...prev, [key]: next }
     })
@@ -137,7 +138,7 @@ export function SortingTable({ events, suppliers, fields, receivingOrders, grade
   function getUniqueVals(colKey: string): string[] {
     const vals = new Set<string>()
     for (const row of baseRows) vals.add(getColValue(colKey, row))
-    return [...vals].sort((a, b) => a.localeCompare(b, 'he'))
+    return Array.from(vals).sort((a, b) => a.localeCompare(b, 'he'))
   }
 
   // ── filtered + sorted rows ─────────────────────────────────────────────────
@@ -277,10 +278,9 @@ export function SortingTable({ events, suppliers, fields, receivingOrders, grade
         }
         if (!sortedDate) continue
 
-        const freshness = isFreshness(String(isFreshness ? row[iFreshness] ?? '' : ''))
-          ? String(row[iFreshness] ?? '')
-          : ''
-        const length = String(iFreshness >= 0 ? (row[iLength] ?? '') : '')
+        const rawFreshness = iFreshness >= 0 ? String(row[iFreshness] ?? '') : ''
+        const freshness = isFreshness(rawFreshness) ? rawFreshness : ''
+        const length = String(iLength >= 0 ? (row[iLength] ?? '') : '')
         if (!freshness || !length) continue
 
         const quantities = gradeIdxMap
@@ -491,7 +491,7 @@ export function SortingTable({ events, suppliers, fields, receivingOrders, grade
           </tbody>
           <tfoot>
             <tr style={{ background: '#f3f4f6', borderTop: '2px solid #e5e7eb', fontWeight: 600 }}>
-              <td style={{ ...tdStyle, color: '#374151' }} colSpan={7}>סה"כ ({rows.length})</td>
+              <td style={{ ...tdStyle, color: '#374151' }} colSpan={7}>{`סה"כ (${rows.length})`}</td>
               {sortedGrades.map(g => (
                 <td key={g.id} style={{ ...tdStyle, textAlign: 'center', color: '#374151' }}>
                   {(totals.gradeMap[g.name] ?? 0) > 0 ? totals.gradeMap[g.name].toLocaleString() : '—'}
