@@ -131,7 +131,7 @@ export function SortingTable({ events, suppliers, fields, receivingOrders, grade
       field:    fields.find(f => f.id === e.field_id)?.name ?? e.field_name ?? '—',
       supplier: suppliers.find(s => s.id === e.supplier_id)?.name ?? '—',
       kabala:   e.warehouse_code
-        ? (receivingOrders.find(o => o.warehouse_code === e.warehouse_code)?.serial_no ?? '—')
+        ? (receivingOrders.find(o => o.serial_no === e.warehouse_code)?.serial_no ?? e.warehouse_code)
         : '—',
       total: (e.sorting_quantities ?? []).reduce((s, q) => s + q.quantity, 0),
     })),

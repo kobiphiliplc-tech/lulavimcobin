@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Plus, Trash2, X } from 'lucide-react'
 import { NON_REJECT_GRADES, LENGTH_TYPES, FRESHNESS_TYPES } from '@/lib/constants'
 import type { Customer, SaleOrder, InventoryRow } from '@/lib/types'
+import { cn } from '@/lib/utils'
 
 function todayISO() {
   const d = new Date()
@@ -127,14 +128,14 @@ export function SaleOrderForm({ open, onClose, onSave, customers, inventory, ord
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-3xl max-h-[90vh] overflow-y-auto overflow-x-hidden" dir="rtl">
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto" dir="rtl">
         <DialogHeader>
           <DialogTitle>{order ? 'עריכת הזמנה' : 'הזמנה חדשה'}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
           {/* Header */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <Label>לקוח *</Label>
               <Controller control={control} name="customer_id"
@@ -203,8 +204,8 @@ export function SaleOrderForm({ open, onClose, onSave, customers, inventory, ord
             )}
 
             <div className="space-y-2">
-              {/* Table header */}
-              <div className="grid grid-cols-[minmax(80px,2fr)_75px_70px_65px_65px_minmax(80px,2fr)_28px] gap-2 text-xs text-muted-foreground px-1">
+              {/* Table header — desktop only */}
+              <div className="hidden sm:grid grid-cols-[minmax(80px,2fr)_75px_70px_65px_65px_minmax(80px,2fr)_28px] gap-2 text-xs text-muted-foreground px-1">
                 <span>גדר</span><span>אורך</span><span>טריות</span><span>כמות</span><span>מחיר</span><span>הערה</span><span></span>
               </div>
 
@@ -217,19 +218,75 @@ export function SaleOrderForm({ open, onClose, onSave, customers, inventory, ord
 
                 return (
                   <div key={field.id} className="space-y-1">
-                    <div className="grid grid-cols-[minmax(80px,2fr)_75px_70px_65px_65px_minmax(80px,2fr)_28px] gap-2 items-center">
+
+                    {/* Mobile card layout */}
+                    <div className="sm:hidden space-y-1.5 rounded-lg border border-border p-2">
+                      <div className="flex gap-2 items-center">
+                        <select {...register(`items.${idx}.grade`)} className={cn(selectCls, 'flex-1')}>
+                          {NON_REJECT_GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                        </select>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 flex-shrink-0 text-muted-foreground hover:text-destructive"
+                          onClick={() => remove(idx)}
+                          disabled={fields.length === 1}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <select {...register(`items.${idx}.length_type`)} className={selectCls}>
+                          {LENGTH_TYPES.map(l => <option key={l} value={l}>{l}</option>)}
+                        </select>
+                        <select {...register(`items.${idx}.freshness_type`)} className={selectCls}>
+                          {FRESHNESS_TYPES.map(f => <option key={f} value={f}>{f}</option>)}
+                        </select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <Input
+                          type="number"
+                          min={1}
+                          {...register(`items.${idx}.quantity_ordered`, { valueAsNumber: true })}
+                          placeholder="כמות"
+                          dir="ltr"
+                          className="text-center"
+                        />
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          {...register(`items.${idx}.unit_price`, { valueAsNumber: true })}
+                          placeholder="מחיר"
+                          dir="ltr"
+                          className="text-center"
+                        />
+                      </div>
+                      <Input {...register(`items.${idx}.notes`)} placeholder="הערה..." />
+                      <div className="flex justify-between text-xs px-0.5">
+                        <span className={available === 0 ? 'text-destructive' : 'text-muted-foreground'}>
+                          מלאי: {available.toLocaleString('he-IL')}
+                        </span>
+                        {rowTotal > 0 && (
+                          <span className="text-muted-foreground">
+                            = {currencySymbol}{rowTotal.toLocaleString('he-IL', { maximumFractionDigits: 0 })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Desktop table row */}
+                    <div className="hidden sm:grid grid-cols-[minmax(80px,2fr)_75px_70px_65px_65px_minmax(80px,2fr)_28px] gap-2 items-center">
                       <select {...register(`items.${idx}.grade`)} className={selectCls}>
                         {NON_REJECT_GRADES.map(g => <option key={g} value={g}>{g}</option>)}
                       </select>
-
                       <select {...register(`items.${idx}.length_type`)} className={selectCls}>
                         {LENGTH_TYPES.map(l => <option key={l} value={l}>{l}</option>)}
                       </select>
-
                       <select {...register(`items.${idx}.freshness_type`)} className={selectCls}>
                         {FRESHNESS_TYPES.map(f => <option key={f} value={f}>{f}</option>)}
                       </select>
-
                       <Input
                         type="number"
                         min={1}
@@ -238,7 +295,6 @@ export function SaleOrderForm({ open, onClose, onSave, customers, inventory, ord
                         dir="ltr"
                         className="text-center"
                       />
-
                       <Input
                         type="number"
                         step="0.01"
@@ -248,9 +304,7 @@ export function SaleOrderForm({ open, onClose, onSave, customers, inventory, ord
                         dir="ltr"
                         className="text-center"
                       />
-
                       <Input {...register(`items.${idx}.notes`)} placeholder="הערה..." />
-
                       <Button
                         type="button"
                         variant="ghost"
@@ -263,8 +317,8 @@ export function SaleOrderForm({ open, onClose, onSave, customers, inventory, ord
                       </Button>
                     </div>
 
-                    {/* Available stock + row total */}
-                    <div className="grid grid-cols-[minmax(80px,2fr)_75px_70px_65px_65px_minmax(80px,2fr)_28px] gap-2 px-1">
+                    {/* Desktop: stock + row total */}
+                    <div className="hidden sm:grid grid-cols-[minmax(80px,2fr)_75px_70px_65px_65px_minmax(80px,2fr)_28px] gap-2 px-1">
                       <span className={`text-xs col-span-3 ${available === 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
                         מלאי זמין: {available.toLocaleString('he-IL')}
                       </span>

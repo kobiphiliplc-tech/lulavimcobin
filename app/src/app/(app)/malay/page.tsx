@@ -570,7 +570,7 @@ export default function MalayPage() {
 
       {/* Delete confirm */}
       <Dialog open={!!deleteConfirm} onOpenChange={v => !v && setDeleteConfirm(null)}>
-        <DialogContent className="max-w-sm" dir="rtl">
+        <DialogContent className="sm:max-w-sm" dir="rtl">
           <DialogHeader>
             <DialogTitle>מחיקת הזמנה</DialogTitle>
           </DialogHeader>

@@ -51,7 +51,6 @@ export interface ReceivingOrder {
   returns_quantity: number
   category: string
   status: string
-  warehouse_code: string | null
   price_per_unit: number | null
   total_price: number | null
   order_currency: string
@@ -150,4 +149,50 @@ export interface CustomerPayment {
   check_due_date: string | null
   notes: string | null
   created_at: string
+}
+
+export interface Season {
+  id: number
+  year: string
+  start_date: string | null
+  end_date: string | null
+  label: string | null
+  created_at: string
+}
+
+export interface TeamMember {
+  id: number
+  name: string
+  supabase_user_id: string | null
+  created_at: string
+}
+
+export interface Task {
+  id: string
+  title: string
+  description?: string
+  status: 'open' | 'in_progress' | 'done'
+  priority: 'normal' | 'urgent'
+  task_type: 'task' | 'note'
+  due_date?: string
+  due_time?: string
+  reminder_days_before_season?: number
+  season_context: 'current' | 'next' | 'timeless'
+  season_year?: string
+  is_recurring: boolean
+  recurring_expires_year?: number
+  linked_entity_type?: string
+  linked_entity_id?: string
+  linked_entity_name?: string
+  linked_module?: string
+  linked_sub_module?: string
+  linked_record_id?: string
+  linked_record_label?: string
+  linked_deep_link_path?: string
+  assigned_to_member_id?: number
+  assigned_to_name?: string
+  is_private: boolean
+  created_by_user_id?: string
+  created_at: string
+  updated_at: string
 }

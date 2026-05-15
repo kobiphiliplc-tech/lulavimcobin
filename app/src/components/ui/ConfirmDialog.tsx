@@ -26,7 +26,7 @@ export function ConfirmDialog({
 }: Props) {
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onCancel() }}>
-      <DialogContent className="max-w-sm bg-white text-gray-900" dir="rtl">
+      <DialogContent className="sm:max-w-sm bg-white text-gray-900" dir="rtl">
         <DialogHeader>
           <DialogTitle className="text-base">{title}</DialogTitle>
         </DialogHeader>

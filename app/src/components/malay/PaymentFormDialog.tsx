@@ -75,7 +75,7 @@ export function PaymentFormDialog({ open, onClose, onSave, customers, defaultCus
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="max-w-md" dir="rtl">
+      <DialogContent className="sm:max-w-md" dir="rtl">
         <DialogHeader>
           <DialogTitle>רישום תשלום</DialogTitle>
         </DialogHeader>

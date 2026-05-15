@@ -62,7 +62,7 @@ export function CustomerFormDialog({ open, onClose, onSave, customer }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="max-w-md" dir="rtl">
+      <DialogContent className="sm:max-w-md" dir="rtl">
         <DialogHeader>
           <DialogTitle>{customer ? 'עריכת לקוח' : 'לקוח חדש'}</DialogTitle>
         </DialogHeader>

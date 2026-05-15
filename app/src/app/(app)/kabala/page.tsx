@@ -24,7 +24,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { toast } from 'sonner'
 import Link from 'next/link'
-import { Plus, Pencil, Trash2, ChevronUp, ChevronDown, CheckCircle2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronUp, ChevronDown, CheckCircle2, X } from 'lucide-react'
 import type { ReceivingOrder, Supplier, Field, FieldForecast, FreshnessType } from '@/lib/types'
 import { LENGTH_TYPES } from '@/lib/constants'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
@@ -66,7 +66,6 @@ const schema = z.object({
   vat_included:     z.boolean().default(false),
   notes:            z.string().optional(),
   pallet_count:     z.preprocess(nanToUndef, z.number().optional()),
-  warehouse_code:   z.string().optional(),
 })
 type FormData = z.infer<typeof schema>
 
@@ -243,8 +242,6 @@ export default function KabalaPage() {
   // Reactive watches
   const orderType        = watch('order_type')
   const harvestDate      = watch('harvest_date')
-  const selectedFieldId  = watch('field_id')
-  const currentWHCode    = watch('warehouse_code')
   const pricePerUnit     = Number(watch('price_per_unit') ?? 0)
   const orderCurrency    = watch('order_currency') ?? 'ILS'
   const vatIncluded      = watch('vat_included')
@@ -263,37 +260,6 @@ export default function KabalaPage() {
 
   const filteredFields = fields
 
-  // Auto-suggest warehouse_code when field + freshness change (new orders only)
-  useEffect(() => {
-    if (editing) return
-    if (!selectedFieldId) return
-    const open = orders.filter(o =>
-      o.field_id === selectedFieldId &&
-      o.freshness_type === computedFreshness &&
-      o.warehouse_code &&
-      o.status !== 'sorted'
-    )
-    if (open.length > 0) {
-      setValue('warehouse_code', open[0].warehouse_code!)
-    } else {
-      const maxCode = orders.reduce((m, o) => {
-        const n = parseInt(o.warehouse_code ?? '', 10)
-        return isNaN(n) ? m : Math.max(m, n)
-      }, 0)
-      setValue('warehouse_code', String(maxCode + 1))
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFieldId, computedFreshness])
-
-  // Badge + conflict: orders sharing this warehouse_code (excluding self)
-  const warehouseBadge = useMemo(() => {
-    if (!currentWHCode) return null
-    const matching = orders.filter(o => o.warehouse_code === currentWHCode && o.id !== editing?.id)
-    if (matching.length === 0) return null
-    const totalQty = matching.reduce((s, o) => s + Math.max(0, (o.total_quantity ?? 0) - o.returns_quantity), 0)
-    const conflict = !!selectedFieldId && matching.some(o => o.field_id !== selectedFieldId)
-    return { count: matching.length, totalQty, conflict }
-  }, [currentWHCode, orders, editing, selectedFieldId])
 
   // VAT calculations
   const priceExVat  = vatIncluded ? pricePerUnit / (1 + vatRate / 100) : pricePerUnit
@@ -354,8 +320,7 @@ export default function KabalaPage() {
       vat_included: false,
       category: 'לולבים למיון',
       received_date: todayISO(),
-      serial_no: String(suggestedSerial),
-      warehouse_code: sp.get('warehouse_code') ?? '',
+      serial_no: sp.get('warehouse_code') ?? String(suggestedSerial),
       field_id:       sp.get('field_id')    ? Number(sp.get('field_id'))    : undefined,
       supplier_id:    sp.get('supplier_id') ? Number(sp.get('supplier_id')) : undefined,
       total_quantity: sp.get('qty')         ? Number(sp.get('qty'))         : undefined,
@@ -405,25 +370,15 @@ export default function KabalaPage() {
   }
 
   function getSortingStatus(order: ReceivingOrder, net: number) {
-    if (order.warehouse_code) {
-      const matched = sortingEvents.filter(e => e.warehouse_code === order.warehouse_code)
-      if (matched.length === 0) return { label: 'לא מויין', cls: 'bg-gray-100 text-gray-600' }
-      const sortedTotal = matched.reduce((s, e) => s + (e.sorting_quantities ?? []).reduce((a, q) => a + q.quantity, 0), 0)
-      // compare against combined net of ALL orders sharing this warehouse_code
-      const allSiblings = orders.filter(o => o.warehouse_code === order.warehouse_code)
-      const totalNet    = allSiblings.reduce((s, o) => s + Math.max(0, (o.total_quantity ?? 0) - o.returns_quantity), 0)
-      if (order.status === 'sorted' || (totalNet > 0 && sortedTotal >= totalNet)) {
-        return { label: `מויין מלא — ${sortedTotal.toLocaleString()}`, cls: 'bg-green-100 text-green-800' }
-      }
-      return { label: `מויין חלקי — ${sortedTotal.toLocaleString()}/${totalNet.toLocaleString()}`, cls: 'bg-yellow-100 text-yellow-800' }
+    const matched = sortingEvents.filter(e =>
+      e.warehouse_code === order.serial_no || e.receiving_serial === order.serial_no
+    )
+    const sortedTotal = matched.reduce((s, e) => s + (e.sorting_quantities ?? []).reduce((a, q) => a + q.quantity, 0), 0)
+    if (matched.length === 0) return { label: 'לא מויין', cls: 'bg-gray-100 text-gray-600' }
+    if (order.status === 'sorted' || (net > 0 && sortedTotal >= net)) {
+      return { label: `מויין מלא — ${sortedTotal.toLocaleString()}`, cls: 'bg-green-100 text-green-800' }
     }
-    // fallback: legacy receiving_serial string match
-    const legacy = sortingEvents.filter(e => e.receiving_serial === order.serial_no)
-    const totalSorted = legacy.reduce((s, e) =>
-      s + (e.sorting_quantities ?? []).reduce((a, q) => a + q.quantity, 0), 0)
-    if (legacy.length === 0)           return { label: 'לא מויין',  cls: 'bg-gray-100 text-gray-600' }
-    if (totalSorted >= net && net > 0) return { label: `מויין מלא — ${totalSorted.toLocaleString()}`, cls: 'bg-green-100 text-green-800' }
-    return { label: `מויין חלקי — ${totalSorted.toLocaleString()}/${net.toLocaleString()}`, cls: 'bg-yellow-100 text-yellow-800' }
+    return { label: `מויין חלקי — ${sortedTotal.toLocaleString()}/${net.toLocaleString()}`, cls: 'bg-yellow-100 text-yellow-800' }
   }
 
   function openNew() {
@@ -433,7 +388,6 @@ export default function KabalaPage() {
       vat_included: false, category: 'לולבים למיון',
       received_date: todayISO(),
       serial_no: String(suggestedSerial),
-      warehouse_code: '',
     })
     setDialogOpen(true)
   }
@@ -457,7 +411,6 @@ export default function KabalaPage() {
       vat_included:     false,
       notes:            order.notes ?? '',
       pallet_count:     order.pallet_count ?? undefined,
-      warehouse_code:   order.warehouse_code ?? '',
     })
     setDialogOpen(true)
   }
@@ -485,7 +438,7 @@ export default function KabalaPage() {
     let { error } = await trySave(payload)
     // Retry: progressively strip new columns that may not exist yet in the DB
     if (error?.message) {
-      const newCols = ['order_currency', 'order_type', 'warehouse_code'] as const
+      const newCols = ['order_currency', 'order_type'] as const
       const stripped = { ...payload } as Record<string, unknown>
       for (let i = 0; i < newCols.length && error?.message; i++) {
         delete stripped[newCols[i]]
@@ -724,7 +677,7 @@ export default function KabalaPage() {
 
       {/* ── Dialog ── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-white text-gray-900" dir="rtl">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto bg-white text-gray-900" dir="rtl">
           <DialogHeader>
             <DialogTitle>{editing ? `עריכת קבלה ${editing.serial_no}` : 'קבלה חדשה'}</DialogTitle>
           </DialogHeader>
@@ -773,41 +726,30 @@ export default function KabalaPage() {
                     <option value="__new__">+ הוסף ספק חדש</option>
                   </select>
                 )} />
-                {addingSupplier && (
-                  <div className="flex gap-1.5 mt-1">
-                    <input
-                      autoFocus
-                      type="text"
-                      value={newSupplierName}
-                      onChange={e => setNewSupplierName(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddSupplier() } if (e.key === 'Escape') { setAddingSupplier(false); setNewSupplierName('') } }}
-                      placeholder="שם ספק חדש..."
-                      className="flex-1 h-8 rounded-lg border border-green-400 px-2 text-sm outline-none focus:ring-2 focus:ring-green-500/20 bg-white"
-                    />
-                    <button type="button" onClick={handleAddSupplier} disabled={addingSupplierBusy || !newSupplierName.trim()}
-                      className="flex-shrink-0 h-8 px-2 bg-green-600 text-white rounded-lg text-xs font-medium disabled:opacity-50 hover:bg-green-700">
-                      {addingSupplierBusy ? '...' : 'שמור'}
-                    </button>
-                    <button type="button" onClick={() => { setAddingSupplier(false); setNewSupplierName('') }}
-                      className="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600">
-                      ✕
-                    </button>
-                  </div>
-                )}
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">קוד מחסן</Label>
-                <Input type="number" min="1" {...register('warehouse_code')} placeholder="—" className="h-8 text-sm font-mono" />
-                {warehouseBadge && (
-                  <p className="text-[10px] text-blue-600 font-medium">
-                    {warehouseBadge.count} קב׳ · {warehouseBadge.totalQty.toLocaleString()} יח׳
-                  </p>
-                )}
-                {warehouseBadge?.conflict && (
-                  <p className="text-[10px] text-orange-600 font-bold">⚠ קוד שייך לחלקה אחרת</p>
-                )}
               </div>
             </div>
+            {/* inline add rows — full width below the grid */}
+            {addingSupplier && (
+              <div className="flex gap-2 mt-1 min-w-0 overflow-hidden">
+                <input
+                  autoFocus
+                  type="text"
+                  value={newSupplierName}
+                  onChange={e => setNewSupplierName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddSupplier() } if (e.key === 'Escape') { setAddingSupplier(false); setNewSupplierName('') } }}
+                  placeholder="שם ספק חדש..."
+                  className="min-w-0 flex-1 h-8 rounded-lg border border-green-400 px-2 text-sm outline-none focus:ring-2 focus:ring-green-500/20 bg-white"
+                />
+                <button type="button" onClick={handleAddSupplier} disabled={addingSupplierBusy || !newSupplierName.trim()}
+                  className="flex-shrink-0 h-8 px-3 bg-green-600 text-white rounded-lg text-xs font-medium disabled:opacity-50 hover:bg-green-700">
+                  {addingSupplierBusy ? '...' : 'שמור'}
+                </button>
+                <button type="button" onClick={() => { setAddingSupplier(false); setNewSupplierName('') }}
+                  className="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
 
             {/* 3. פרטי סחורה */}
             {isLulav && (

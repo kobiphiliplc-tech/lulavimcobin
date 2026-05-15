@@ -20,6 +20,9 @@ export type CacheTable =
   | 'cached_receiving_orders'
   | 'cached_suppliers'
   | 'cached_fields'
+  | 'cached_tasks'
+  | 'cached_seasons'
+  | 'cached_team_members'
 
 class LulabDB extends Dexie {
   offlineActions!: Table<OfflineAction>
@@ -33,6 +36,9 @@ class LulabDB extends Dexie {
   cached_receiving_orders!: Table<Record<string, unknown>>
   cached_suppliers!: Table<Record<string, unknown>>
   cached_fields!: Table<Record<string, unknown>>
+  cached_tasks!: Table<Record<string, unknown>>
+  cached_seasons!: Table<Record<string, unknown>>
+  cached_team_members!: Table<Record<string, unknown>>
 
   constructor() {
     super('lulab-offline')
@@ -51,6 +57,22 @@ class LulabDB extends Dexie {
       cached_receiving_orders: '&id, season',
       cached_suppliers: '&id',
       cached_fields: '&id, supplier_id',
+    })
+    this.version(3).stores({
+      offlineActions: '++id, table, synced, createdAt',
+      cached_sale_orders: '&id, season, customer_id, status',
+      cached_sale_order_items: '&id, order_id',
+      cached_customers: '&id',
+      cached_customer_payments: '&id, season, customer_id, order_id',
+      cached_inventory: '&id, season, grade, length_type, freshness_type',
+      cached_sorting_events: '&id, season',
+      cached_sorting_quantities: '&id, sorting_event_id',
+      cached_receiving_orders: '&id, season',
+      cached_suppliers: '&id',
+      cached_fields: '&id, supplier_id',
+      cached_tasks: '&id, due_date, status, season_context, season_year',
+      cached_seasons: '&id, year',
+      cached_team_members: '&id',
     })
   }
 }

@@ -91,7 +91,6 @@ export function buildCardHtml(
   <table style="width:100%;border-collapse:collapse;background:${theme.headerBg};" cellpadding="0" cellspacing="0"><tr>
     <td style="width:90px;padding:16px;vertical-align:middle;">
       <div style="background:${theme.badgeBg};color:${theme.badgeText};font-size:13px;font-weight:700;padding:4px 10px;border-radius:8px;display:inline-block;">${event.sort_serial}</div>
-      ${event.warehouse_code ? `<div style="font-size:11px;color:rgba(255,255,255,0.75);margin-top:2px;">גוף ${event.warehouse_code}</div>` : ''}
       ${event.notes ? `<div style="font-size:11px;color:rgba(255,255,255,0.82);margin-top:3px;line-height:1.3;">${event.notes}</div>` : ''}
     </td>
     <td style="padding:16px 16px 16px 0;vertical-align:middle;text-align:right;">
@@ -218,7 +217,7 @@ export function WhatsAppShareDialog({ open, onClose, events, suppliers, fields, 
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose() }}>
-      <DialogContent className="max-w-sm bg-white text-gray-900" dir="rtl">
+      <DialogContent className="sm:max-w-sm bg-white text-gray-900" dir="rtl">
         <DialogHeader>
           <DialogTitle className="text-base flex items-center gap-2">
             <svg viewBox="0 0 24 24" className="w-4 h-4 flex-shrink-0" style={{ fill: '#25D366' }}>

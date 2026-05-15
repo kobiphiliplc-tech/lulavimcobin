@@ -394,6 +394,7 @@ export default function MiuinimPage() {
   const [waShareOpen,     setWaShareOpen]     = useState(false)
   const [deleteConfirm,   setDeleteConfirm]   = useState<SortingEvent | null>(null)
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
+  const [creatingKabalaFor, setCreatingKabalaFor] = useState<string | null>(null)
 
   const loadFromCache = useCallback(async () => {
     if (!activeSeason) return
@@ -413,10 +414,10 @@ export default function MiuinimPage() {
     if (cachedOrders.length > 0)    setReceivingOrders(cachedOrders as unknown as ReceivingOrder[])
   }, [activeSeason])
 
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(async (silent = false) => {
     if (!activeSeason) return
     if (!navigator.onLine) { setLoading(false); return }
-    setLoading(true)
+    if (!silent) setLoading(true)
     const [evRes, supRes, fldRes, ordRes, gradeRes] = await Promise.all([
       supabase.from('sorting_events')
         .select('*, sorting_quantities(*)')
@@ -580,7 +581,7 @@ export default function MiuinimPage() {
       // offer to create a receiving order if none exists for this warehouse_code
       const wc = data.warehouse_code
       if (wc) {
-        const hasLinked = receivingOrders.some(o => o.warehouse_code === wc)
+        const hasLinked = receivingOrders.some(o => o.serial_no === wc)
         if (!hasLinked) {
           const totalSorted = quantities.reduce((s, q) => s + q.quantity, 0)
           setPendingKabalaPrompt({
@@ -597,7 +598,7 @@ export default function MiuinimPage() {
 
     setDialogOpen(false)
     setEditing(undefined)
-    fetchAll()
+    fetchAll(true)
   }
 
   async function upsertInventory(grade: string, length: string, freshness: string, delta: number) {
@@ -621,8 +622,10 @@ export default function MiuinimPage() {
     newQtys: Array<{ grade: string; quantity: number }>,
     newLength: string, newFreshness: string
   ) {
-    for (const oq of oldQtys) if (oq.quantity > 0) await upsertInventory(oq.grade, oldLength, oldFreshness, -oq.quantity)
-    for (const nq of newQtys) if (nq.quantity > 0) await upsertInventory(nq.grade, newLength, newFreshness, nq.quantity)
+    await Promise.all([
+      ...oldQtys.filter(q => q.quantity > 0).map(q => upsertInventory(q.grade, oldLength, oldFreshness, -q.quantity)),
+      ...newQtys.filter(q => q.quantity > 0).map(q => upsertInventory(q.grade, newLength, newFreshness, q.quantity)),
+    ])
   }
 
   async function handleDelete(event: SortingEvent) {
@@ -631,8 +634,8 @@ export default function MiuinimPage() {
 
   async function doDelete(event: SortingEvent) {
     setDeleteConfirm(null)
+    const previousEvents = events
 
-    // Optimistic remove from local state + cache immediately
     setEvents(prev => prev.filter(e => e.id !== event.id))
     await removeCachedRow('cached_sorting_events', event.id)
 
@@ -642,12 +645,20 @@ export default function MiuinimPage() {
       return
     }
 
-    for (const q of event.sorting_quantities ?? []) {
-      if (q.quantity > 0) await upsertInventory(q.grade, event.length_type, event.freshness_type, -q.quantity)
+    try {
+      await Promise.all(
+        (event.sorting_quantities ?? [])
+          .filter(q => q.quantity > 0)
+          .map(q => upsertInventory(q.grade, event.length_type, event.freshness_type, -q.quantity))
+      )
+      const { error } = await supabase.from('sorting_events').delete().eq('id', event.id)
+      if (error) throw error
+      toast.success('מיון נמחק')
+      fetchAll(true)
+    } catch {
+      setEvents(previousEvents)
+      toast.error('המחיקה נכשלה — הנתונים שוחזרו')
     }
-    await supabase.from('sorting_events').delete().eq('id', event.id)
-    toast.success('מיון נמחק')
-    fetchAll()
   }
 
   async function handleFieldAdded(name: string, supplierId?: number): Promise<Field | null> {
@@ -687,15 +698,29 @@ export default function MiuinimPage() {
   async function doBulkDelete() {
     setBulkDeleteConfirm(false)
     const toDelete = events.filter(e => selectedIds.has(e.id))
-    for (const event of toDelete) {
-      for (const q of event.sorting_quantities ?? []) {
-        if (q.quantity > 0) await upsertInventory(q.grade, event.length_type, event.freshness_type, -q.quantity)
-      }
-      await supabase.from('sorting_events').delete().eq('id', event.id)
-    }
-    toast.success(`${selectedIds.size} מיונים נמחקו`)
+    const ids = toDelete.map(e => e.id)
+    const count = ids.length
+    const previousEvents = events
+
+    setEvents(prev => prev.filter(e => !selectedIds.has(e.id)))
     setSelectedIds(new Set())
-    fetchAll()
+
+    try {
+      await Promise.all(
+        toDelete.flatMap(event =>
+          (event.sorting_quantities ?? [])
+            .filter(q => q.quantity > 0)
+            .map(q => upsertInventory(q.grade, event.length_type, event.freshness_type, -q.quantity))
+        )
+      )
+      const { error } = await supabase.from('sorting_events').delete().in('id', ids)
+      if (error) throw error
+      toast.success(`${count} מיונים נמחקו`)
+      fetchAll(true)
+    } catch {
+      setEvents(previousEvents)
+      toast.error('המחיקה נכשלה — הנתונים שוחזרו')
+    }
   }
 
   function toggleSelectId(id: number) {
@@ -751,7 +776,7 @@ export default function MiuinimPage() {
       success++
     }
 
-    fetchAll()
+    fetchAll(true)
     return { success, errors }
   }
 
@@ -784,36 +809,49 @@ export default function MiuinimPage() {
   const missingSortings = useMemo(() =>
     events.filter(e =>
       e.warehouse_code &&
-      !receivingOrders.some(o => o.warehouse_code === e.warehouse_code)
+      !receivingOrders.some(o => o.serial_no === e.warehouse_code)
     ),
   [events, receivingOrders])
 
   async function handleAddKabala(event: SortingEvent) {
-    const { data: lastOrd } = await supabase
-      .from('receiving_orders')
-      .select('serial_no')
-      .order('serial_no', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    const nextSerial = lastOrd ? String(parseInt(lastOrd.serial_no, 10) + 1) : '9001'
-    const total = (event.sorting_quantities ?? []).reduce((s, q) => s + q.quantity, 0)
-    const { error } = await supabase.from('receiving_orders').insert({
-      season:           activeSeason,
-      serial_no:        nextSerial,
-      received_date:    event.sorted_date,
-      supplier_id:      event.supplier_id ?? null,
-      field_id:         event.field_id    ?? null,
-      freshness_type:   event.freshness_type,
-      length_type:      event.length_type,
-      warehouse_code:   event.warehouse_code,
-      total_quantity:   total,
-      returns_quantity: 0,
-      category:         'לולבים למיון',
-      status:           'pending',
-    })
-    if (error) { toast.error('שגיאה ביצירת קבלה: ' + error.message); return }
-    toast.success(`קבלה ${nextSerial} נוצרה`)
-    fetchAll()
+    if (!event.warehouse_code) return
+    setCreatingKabalaFor(event.warehouse_code)
+    try {
+      // fetch all serial_no values and compute numeric max to avoid text-sort bug
+      const { data: allOrds } = await supabase
+        .from('receiving_orders')
+        .select('serial_no')
+      const maxSerial = (allOrds ?? []).reduce((max, o) => {
+        const n = parseInt(o.serial_no, 10)
+        return isNaN(n) ? max : Math.max(max, n)
+      }, 9000)
+
+      const total = (event.sorting_quantities ?? []).reduce((s, q) => s + q.quantity, 0)
+
+      // retry up to 5 times on duplicate key conflict
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const serial = String(maxSerial + 1 + attempt)
+        const { error } = await supabase.from('receiving_orders').insert({
+          season:           activeSeason,
+          serial_no:        serial,
+          received_date:    event.sorted_date,
+          supplier_id:      event.supplier_id ?? null,
+          field_id:         event.field_id    ?? null,
+          freshness_type:   event.freshness_type,
+          length_type:      event.length_type,
+          warehouse_code:   event.warehouse_code,
+          total_quantity:   total,
+          returns_quantity: 0,
+          category:         'לולבים למיון',
+          status:           'pending',
+        })
+        if (!error) { toast.success(`קבלה ${serial} נוצרה`); fetchAll(); return }
+        if (error.code !== '23505') { toast.error('שגיאה ביצירת קבלה: ' + error.message); return }
+      }
+      toast.error('לא ניתן היה ליצור קבלה — נסה שוב')
+    } finally {
+      setCreatingKabalaFor(null)
+    }
   }
 
   return (
@@ -1034,8 +1072,9 @@ export default function MiuinimPage() {
                       size="sm"
                       className="flex-shrink-0 h-7 text-xs bg-green-600 hover:bg-green-700"
                       onClick={() => handleAddKabala(event)}
+                      disabled={creatingKabalaFor === event.warehouse_code}
                     >
-                      הוסף קבלה
+                      {creatingKabalaFor === event.warehouse_code ? 'יוצר...' : 'הוסף קבלה'}
                     </Button>
                   </div>
                 )
@@ -1047,7 +1086,7 @@ export default function MiuinimPage() {
 
       {/* Kabala prompt dialog */}
       <Dialog open={!!pendingKabalaPrompt} onOpenChange={open => { if (!open) setPendingKabalaPrompt(null) }}>
-        <DialogContent className="max-w-sm bg-white text-gray-900" dir="rtl">
+        <DialogContent className="sm:max-w-sm bg-white text-gray-900" dir="rtl">
           <DialogHeader>
             <DialogTitle className="text-base">מיון נשמר בהצלחה</DialogTitle>
           </DialogHeader>
@@ -1082,7 +1121,7 @@ export default function MiuinimPage() {
 
       {/* Dialog */}
       <Dialog open={dialogOpen} onOpenChange={open => { setDialogOpen(open); if (!open) { setEditing(undefined); setNextSerial(undefined) } }}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-white text-gray-900" dir="rtl">
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto bg-white text-gray-900" dir="rtl">
           <DialogHeader>
             <DialogTitle>
               {editing && editing.id !== 0 ? `עריכת מיון #${editing.sort_serial}` : `מיון חדש — עונה ${activeSeason}`}

@@ -201,14 +201,14 @@ export function SortingForm({
     const open = receivingOrders.filter(o =>
       o.field_id === selectedFldId &&
       o.freshness_type === selectedFreshness &&
-      o.warehouse_code &&
+      o.serial_no &&
       o.status !== 'sorted'
     )
     if (open.length > 0) {
-      setValue('warehouse_code', open[0].warehouse_code!)
+      setValue('warehouse_code', open[0].serial_no)
     } else {
       const maxFromOrders = receivingOrders.reduce((m, o) => {
-        const n = parseInt(o.warehouse_code ?? '', 10)
+        const n = parseInt(o.serial_no, 10)
         return isNaN(n) ? m : Math.max(m, n)
       }, 0)
       const maxFromEvents = usedWarehouseCodes.reduce((m, c) => {
@@ -223,7 +223,7 @@ export function SortingForm({
   // badge + conflict check: receiving orders sharing this warehouse code
   const warehouseInfo = useMemo(() => {
     if (!warehouseCode) return null
-    const matching = receivingOrders.filter(o => o.warehouse_code === warehouseCode)
+    const matching = receivingOrders.filter(o => o.serial_no === warehouseCode)
     if (matching.length === 0) return null
     const totalQty = matching.reduce((s, o) => s + Math.max(0, (o.total_quantity ?? 0) - o.returns_quantity), 0)
     const conflict = !!selectedFldId && matching.some(o => o.field_id !== selectedFldId)
@@ -293,7 +293,7 @@ export function SortingForm({
         </div>
 
         {/* Row 1: תאריך | ספק | שדה/חלקה */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1">
             <label className="text-xs text-gray-500 whitespace-nowrap">תאריך *</label>
             <Controller control={control} name="sorted_date" render={({ field }) => (
@@ -396,7 +396,7 @@ export function SortingForm({
         )}
 
         {/* Row 2: אורך | טריות | סטטוס | קוד מחסן */}
-        <div className="grid grid-cols-4 gap-3 mt-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
           <div className="space-y-1 min-w-0">
             <label className="text-xs text-gray-500 whitespace-nowrap block">אורך</label>
             <Controller control={control} name="length_type" render={({ field }) => (

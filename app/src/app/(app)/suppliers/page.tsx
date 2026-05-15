@@ -1287,7 +1287,7 @@ function SuppliersInner() {
 
       {/* ── New / Edit supplier dialog ── */}
       <Dialog open={supDialogOpen} onOpenChange={open => { setSupDialogOpen(open); if (!open) setEditingSupplier(null) }}>
-        <DialogContent className="max-w-sm bg-white text-gray-900" dir="rtl">
+        <DialogContent className="sm:max-w-sm bg-white text-gray-900" dir="rtl">
           <DialogHeader><DialogTitle>{editingSupplier ? 'עריכת ספק' : 'ספק חדש'}</DialogTitle></DialogHeader>
           <form onSubmit={hsSup(onSupSubmit)} className="space-y-4 mt-2">
             <div className="space-y-1">
