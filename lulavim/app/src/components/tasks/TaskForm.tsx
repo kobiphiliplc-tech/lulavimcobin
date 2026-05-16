@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -13,7 +13,9 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { HebrewDatePicker } from './HebrewDatePicker'
 import { DeepLinkPicker } from './DeepLinkPicker'
-import type { Task, TeamMember } from '@/lib/types'
+import { ChecklistEditor } from './ChecklistEditor'
+import type { Task, TeamMember, ChecklistItem } from '@/lib/types'
+import { isChecklist, parseChecklist, serializeChecklist, newItem, textToChecklist } from '@/lib/checklist'
 
 const schema = z.object({
   title:                       z.string().min(1, 'כותרת חובה'),
@@ -103,6 +105,9 @@ const selectCls = 'w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg
 const radioCls = 'flex items-center gap-2 text-sm cursor-pointer'
 
 export function TaskForm({ open, onClose, onSave, task, members, defaultDate }: Props) {
+  const [descMode, setDescMode] = useState<'text' | 'checklist'>('text')
+  const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([])
+
   const {
     register, handleSubmit, control, watch, setValue, reset,
     formState: { isSubmitting, errors },
@@ -119,6 +124,13 @@ export function TaskForm({ open, onClose, onSave, task, members, defaultDate }: 
   useEffect(() => {
     if (task) {
       reset(toFormData(task) as FormData)
+      if (isChecklist(task.description)) {
+        setDescMode('checklist')
+        setChecklistItems(parseChecklist(task.description))
+      } else {
+        setDescMode('text')
+        setChecklistItems([])
+      }
     } else {
       reset({
         title: '', description: '', status: 'open', priority: 'normal',
@@ -126,6 +138,8 @@ export function TaskForm({ open, onClose, onSave, task, members, defaultDate }: 
         due_date: defaultDate ?? undefined, season_context: 'current',
         entity_mode: 'none', is_recurring: false, is_private: false,
       })
+      setDescMode('text')
+      setChecklistItems([])
     }
   }, [task, defaultDate, reset])
 
@@ -135,9 +149,15 @@ export function TaskForm({ open, onClose, onSave, task, members, defaultDate }: 
   const taskType = watch('task_type')
 
   async function onSubmit(data: FormData) {
+    const resolvedDescription = descMode === 'checklist'
+      ? (checklistItems.some(i => i.text.trim())
+          ? serializeChecklist(checklistItems.filter(i => i.text.trim()))
+          : undefined)
+      : data.description || undefined
+
     const payload: Omit<Task, 'id' | 'created_at' | 'updated_at' | 'created_by_user_id'> = {
       title: data.title,
-      description: data.description || undefined,
+      description: resolvedDescription,
       status: data.status,
       priority: data.priority,
       task_type: data.task_type,
@@ -180,8 +200,44 @@ export function TaskForm({ open, onClose, onSave, task, members, defaultDate }: 
               {errors.title && <p className="text-xs text-red-500 mt-1">{errors.title.message}</p>}
             </div>
             <div>
-              <Label htmlFor="description">תיאור</Label>
-              <Textarea id="description" {...register('description')} placeholder="פרטים נוספים..." className="mt-1 resize-none" rows={2} dir="rtl" />
+              <div className="flex items-center justify-between">
+                <Label htmlFor="description">תיאור</Label>
+                <div className="flex items-center gap-1 text-xs text-gray-400">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (descMode !== 'text') {
+                        setValue('description', checklistItems.map(i => i.text).filter(Boolean).join('\n'))
+                      }
+                      setDescMode('text')
+                    }}
+                    className={descMode === 'text' ? 'font-semibold text-green-700' : 'hover:text-gray-700 transition-colors'}
+                  >
+                    טקסט
+                  </button>
+                  <span className="text-gray-200">|</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (descMode !== 'checklist') {
+                        const currentText = watch('description') || ''
+                        setChecklistItems(currentText.trim() ? textToChecklist(currentText) : [newItem()])
+                      }
+                      setDescMode('checklist')
+                    }}
+                    className={descMode === 'checklist' ? 'font-semibold text-green-700' : 'hover:text-gray-700 transition-colors'}
+                  >
+                    ✓ רשימה
+                  </button>
+                </div>
+              </div>
+              {descMode === 'text' ? (
+                <Textarea id="description" {...register('description')} placeholder="פרטים נוספים..." className="mt-1 resize-none" rows={2} dir="rtl" />
+              ) : (
+                <div className="mt-1">
+                  <ChecklistEditor items={checklistItems} onChange={setChecklistItems} />
+                </div>
+              )}
             </div>
           </div>
 

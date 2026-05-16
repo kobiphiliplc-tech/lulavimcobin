@@ -24,6 +24,10 @@ body {
   font-family: 'Segoe UI', 'Arial Hebrew', Arial, sans-serif;
 }
 
+/* Font size scaling — applied via ThemeContext on <html> */
+html.font-medium { font-size: 18px; }
+html.font-large  { font-size: 20px; }
+
 @layer base {
   .theme {
     --font-heading: var(--font-sans);

@@ -14,7 +14,7 @@ interface SeasonContextValue {
   setActiveSeason: (s: string) => Promise<void>
   allSeasons: string[]
   loading: boolean
-  startNewSeason: (newSeason: string) => Promise<void>
+  startNewSeason: (newSeason: string, startDate?: string, endDate?: string) => Promise<void>
   currentSeasonDates: SeasonDates | null
   nextSeasonDates: SeasonDates | null
   allSeasonRecords: Season[]
@@ -64,6 +64,7 @@ export function SeasonProvider({ children }: { children: ReactNode }) {
     const seasons = new Set<string>([active])
     ev.data?.forEach(r => seasons.add(r.season))
     ro.data?.forEach(r => seasons.add(r.season))
+    seasonsRes.data?.forEach(s => seasons.add(s.year))
     const sorted = Array.from(seasons).sort((a, b) => b.localeCompare(a))
     setAllSeasons(sorted)
 
@@ -93,9 +94,13 @@ export function SeasonProvider({ children }: { children: ReactNode }) {
     if (!allSeasons.includes(season)) setAllSeasons(prev => [season, ...prev].sort((a, b) => b.localeCompare(a)))
   }
 
-  async function startNewSeason(newSeason: string) {
+  async function startNewSeason(newSeason: string, startDate?: string, endDate?: string) {
     await setActiveSeason(newSeason)
-    await supabase.from('seasons').upsert({ year: newSeason }, { onConflict: 'year' })
+    await supabase.from('seasons').upsert({
+      year: newSeason,
+      start_date: startDate || null,
+      end_date: endDate || null,
+    }, { onConflict: 'year' })
     await fetchSeason()
   }
 

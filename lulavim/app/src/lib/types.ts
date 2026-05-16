@@ -167,6 +167,12 @@ export interface TeamMember {
   created_at: string
 }
 
+export interface ChecklistItem {
+  id: string
+  text: string
+  checked: boolean
+}
+
 export interface Task {
   id: string
   title: string

@@ -4,14 +4,17 @@ export const dynamic = 'force-dynamic'
 
 import { useState, useEffect } from 'react'
 import { useSeason } from '@/lib/context/SeasonContext'
+import { useTheme } from '@/lib/context/ThemeContext'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { AlertTriangle, Plus, Pencil, Trash2, Check, X } from 'lucide-react'
+import { AlertTriangle, Plus, Pencil, Trash2, Check, X, ChevronDown, Sun, Moon } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import type { Grade, GradeGroup } from '@/lib/types'
 
 const GRADE_GROUPS: { key: GradeGroup; label: string; defaultColor: string; headerCls: string }[] = [
@@ -22,10 +25,24 @@ const GRADE_GROUPS: { key: GradeGroup; label: string; defaultColor: string; head
 ]
 
 export default function SettingsPage() {
-  const { activeSeason, setActiveSeason, allSeasons, startNewSeason, loading } = useSeason()
+  const { fontSize, darkMode, setFontSize, setDarkMode } = useTheme()
+  const { activeSeason, setActiveSeason, allSeasons, allSeasonRecords, startNewSeason, loading, refetchSeasons } = useSeason()
   const supabase = createClient()
   const [newSeasonName, setNewSeasonName] = useState('')
+  const [newSeasonStart, setNewSeasonStart] = useState('')
+  const [newSeasonEnd, setNewSeasonEnd] = useState('')
   const [saving, setSaving] = useState(false)
+
+  // Collapsible cards state — only 'active-season' open by default
+  const [openCards, setOpenCards] = useState<Set<string>>(new Set(['active-season']))
+
+  function toggleCard(id: string) {
+    setOpenCards(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) { next.delete(id) } else { next.add(id) }
+      return next
+    })
+  }
 
   // Season-specific settings
   const [vatRate, setVatRate] = useState<number>(18)
@@ -77,10 +94,21 @@ export default function SettingsPage() {
     if (!name) { toast.error('יש להזין שם עונה'); return }
     if (allSeasons.includes(name)) { toast.error('עונה זו כבר קיימת'); return }
     setSaving(true)
-    await startNewSeason(name)
+    await startNewSeason(name, newSeasonStart || undefined, newSeasonEnd || undefined)
     setSaving(false)
     setNewSeasonName('')
+    setNewSeasonStart('')
+    setNewSeasonEnd('')
     toast.success(`עונה ${name} הופעלה! המלאי הקודם נשמר.`)
+  }
+
+  async function handleDeleteSeason(year: string) {
+    if (!confirm(`למחוק את עונה ${year}? הנתונים (מיון, קבלות) יישמרו.`)) return
+    setSaving(true)
+    await supabase.from('seasons').delete().eq('year', year)
+    await refetchSeasons()
+    setSaving(false)
+    toast.success(`עונה ${year} נמחקה`)
   }
 
   async function saveGradeName(id: number) {
@@ -131,17 +159,79 @@ export default function SettingsPage() {
     toast.success('הגדרות עונה נשמרו')
   }
 
+  function CollapsibleCard({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
+    const isOpen = openCards.has(id)
+    return (
+      <Card>
+        <button
+          onClick={() => toggleCard(id)}
+          className="w-full text-right"
+          type="button"
+        >
+          <CardHeader className="flex flex-row items-center justify-between py-3 px-4">
+            <CardTitle className="text-base">{title}</CardTitle>
+            <ChevronDown className={cn('h-4 w-4 text-gray-400 transition-transform duration-200 flex-shrink-0', isOpen && 'rotate-180')} />
+          </CardHeader>
+        </button>
+        {isOpen && <CardContent>{children}</CardContent>}
+      </Card>
+    )
+  }
+
   return (
-    <div className="space-y-6 max-w-lg" dir="rtl">
+    <div className="space-y-3 max-w-lg" dir="rtl">
       <div>
         <h1 className="text-xl font-bold">הגדרות</h1>
         <p className="text-xs text-gray-400 mt-0.5">ניהול עונות ומערכת</p>
       </div>
 
+      {/* Appearance */}
+      <CollapsibleCard id="appearance" title="מראה ותצוגה">
+        <div className="space-y-5">
+          <div className="space-y-2">
+            <Label>גודל טקסט</Label>
+            <div className="flex gap-2">
+              {([
+                { value: 'normal', label: 'רגיל' },
+                { value: 'medium', label: 'בינוני' },
+                { value: 'large',  label: 'גדול' },
+              ] as const).map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setFontSize(opt.value)}
+                  className={cn(
+                    'flex-1 py-1.5 text-sm rounded-md border transition-colors',
+                    fontSize === opt.value
+                      ? 'bg-green-600 text-white border-green-600 font-medium'
+                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:border-green-400'
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {darkMode
+                ? <Moon className="h-4 w-4 text-gray-500" />
+                : <Sun className="h-4 w-4 text-gray-500" />
+              }
+              <Label htmlFor="dark-mode-switch" className="cursor-pointer">מצב כהה</Label>
+            </div>
+            <Switch
+              id="dark-mode-switch"
+              checked={darkMode}
+              onCheckedChange={setDarkMode}
+            />
+          </div>
+        </div>
+      </CollapsibleCard>
+
       {/* Active season selector */}
-      <Card>
-        <CardHeader><CardTitle className="text-base">עונה פעילה</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
+      <CollapsibleCard id="active-season" title="עונה פעילה">
+        <div className="space-y-3">
           <p className="text-sm text-gray-500">
             כל הנתונים מוצגים ונשמרים לפי העונה הפעילה. ניתן לעבור בין עונות בכל עת.
           </p>
@@ -163,13 +253,12 @@ export default function SettingsPage() {
             )}
           </div>
           <p className="text-xs text-green-700 font-medium">עונה נוכחית: {activeSeason}</p>
-        </CardContent>
-      </Card>
+        </div>
+      </CollapsibleCard>
 
       {/* Season-specific settings */}
-      <Card>
-        <CardHeader><CardTitle className="text-base">הגדרות עונה — {activeSeason}</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
+      <CollapsibleCard id="season-settings" title={`הגדרות עונה — ${activeSeason}`}>
+        <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <Label htmlFor="vat-rate">אחוז מע״מ (%)</Label>
@@ -205,21 +294,20 @@ export default function SettingsPage() {
           >
             {savingSeasonSettings ? 'שומר...' : 'שמור הגדרות עונה'}
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </CollapsibleCard>
 
       {/* Start new season */}
-      <Card>
-        <CardHeader><CardTitle className="text-base">התחל עונה חדשה</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
+      <CollapsibleCard id="new-season" title="התחל עונה חדשה">
+        <div className="space-y-4">
           <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
             <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
             <span>מלאי קיים נשאר בעונה הנוכחית. העונה החדשה מתחילה ממלאי אפס.</span>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="new-season">שם העונה החדשה</Label>
+            <Label htmlFor="new-season-name">שם העונה החדשה</Label>
             <Input
-              id="new-season"
+              id="new-season-name"
               placeholder="לדוגמה: 2026"
               value={newSeasonName}
               onChange={e => setNewSeasonName(e.target.value)}
@@ -227,6 +315,29 @@ export default function SettingsPage() {
               className="w-48"
             />
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="new-season-start">תאריך פתיחה</Label>
+              <Input
+                id="new-season-start"
+                type="date"
+                value={newSeasonStart}
+                onChange={e => setNewSeasonStart(e.target.value)}
+                className="w-full"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="new-season-end">תאריך סיום</Label>
+              <Input
+                id="new-season-end"
+                type="date"
+                value={newSeasonEnd}
+                onChange={e => setNewSeasonEnd(e.target.value)}
+                className="w-full"
+              />
+            </div>
+          </div>
+          <p className="text-xs text-gray-500">תאריכי הפתיחה והסיום משמשים לחישוב תזכורות במשימות.</p>
           <Button
             onClick={handleStartNewSeason}
             disabled={saving || !newSeasonName.trim()}
@@ -234,38 +345,54 @@ export default function SettingsPage() {
           >
             {saving ? 'שומר...' : 'התחל עונה חדשה'}
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </CollapsibleCard>
 
       {/* Season history */}
-      {allSeasons.length > 1 && (
-        <Card>
-          <CardHeader><CardTitle className="text-base">היסטוריית עונות</CardTitle></CardHeader>
-          <CardContent>
-            <div className="space-y-1">
-              {allSeasons.map(s => (
-                <div key={s} className="flex items-center justify-between py-1.5 border-b last:border-0">
+      <CollapsibleCard id="season-history" title="היסטוריית עונות">
+        <div className="space-y-1">
+          {allSeasons.map(s => {
+            const record = allSeasonRecords.find(r => r.year === s)
+            return (
+              <div key={s} className="flex items-center justify-between py-2 border-b last:border-0 gap-2">
+                <div className="flex flex-col min-w-0">
                   <span className="text-sm font-medium">{s}</span>
-                  {s === activeSeason
-                    ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">פעילה</span>
-                    : <button
-                        className="text-xs text-gray-400 hover:text-green-700 transition-colors"
-                        onClick={() => handleSeasonChange(s)}
-                      >
-                        עבור לעונה
-                      </button>
-                  }
+                  {record?.start_date && (
+                    <span className="text-xs text-gray-400">
+                      {record.start_date}{record.end_date ? ` — ${record.end_date}` : ''}
+                    </span>
+                  )}
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                {s === activeSeason ? (
+                  <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full flex-shrink-0">פעילה</span>
+                ) : (
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      className="text-xs text-gray-400 hover:text-green-700 transition-colors"
+                      onClick={() => handleSeasonChange(s)}
+                      disabled={saving}
+                    >
+                      עבור לעונה
+                    </button>
+                    <button
+                      className="text-xs text-gray-300 hover:text-red-500 transition-colors"
+                      onClick={() => handleDeleteSeason(s)}
+                      disabled={saving}
+                      title="מחק עונה"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </CollapsibleCard>
 
       {/* Grade management */}
-      <Card>
-        <CardHeader><CardTitle className="text-base">ניהול רמות מיון</CardTitle></CardHeader>
-        <CardContent>
+      <CollapsibleCard id="grades" title="ניהול רמות מיון">
+        <div>
           {gradesMissing && (
             <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded p-2 mb-3">
               טבלת הרמות לא קיימת במסד הנתונים. יש להריץ את ה-SQL Migration תחילה.
@@ -350,8 +477,8 @@ export default function SettingsPage() {
               </div>
             ))}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </CollapsibleCard>
     </div>
   )
 }

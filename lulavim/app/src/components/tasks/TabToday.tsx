@@ -15,6 +15,7 @@ interface Props {
   onDelete: (id: string) => void
   onInlineEdit: (id: string, title: string) => void
   onQuickAdd: (title: string, dueDate?: string) => void
+  onChecklistItemToggle?: (task: Task, itemId: string) => void
 }
 
 function todayISO() {
@@ -83,9 +84,10 @@ interface GroupProps {
   onDelete: (id: string) => void
   onInlineEdit: (id: string, title: string) => void
   onQuickAdd: (title: string, date?: string) => void
+  onChecklistItemToggle?: (task: Task, itemId: string) => void
 }
 
-function TaskGroup({ title, badge, tasks, members, currentUserId, borderColor, defaultDate, onToggleStatus, onEdit, onDelete, onInlineEdit, onQuickAdd }: GroupProps) {
+function TaskGroup({ title, badge, tasks, members, currentUserId, borderColor, defaultDate, onToggleStatus, onEdit, onDelete, onInlineEdit, onQuickAdd, onChecklistItemToggle }: GroupProps) {
   if (tasks.length === 0) return null
   return (
     <div className="space-y-2">
@@ -106,6 +108,7 @@ function TaskGroup({ title, badge, tasks, members, currentUserId, borderColor, d
             onEdit={onEdit}
             onDelete={onDelete}
             onInlineEdit={onInlineEdit}
+            onChecklistItemToggle={onChecklistItemToggle}
           />
         ))}
       </div>
@@ -114,34 +117,45 @@ function TaskGroup({ title, badge, tasks, members, currentUserId, borderColor, d
   )
 }
 
-export function TabToday({ tasks, members, currentUserId, nextSeasonStart, onToggleStatus, onEdit, onDelete, onInlineEdit, onQuickAdd }: Props) {
+export function TabToday({ tasks, members, currentUserId, nextSeasonStart, onToggleStatus, onEdit, onDelete, onInlineEdit, onQuickAdd, onChecklistItemToggle }: Props) {
   const today = todayISO()
   const d7 = new Date(); d7.setDate(d7.getDate() + 7)
   const d7ISO = `${d7.getFullYear()}-${String(d7.getMonth() + 1).padStart(2, '0')}-${String(d7.getDate()).padStart(2, '0')}`
 
-  const active = tasks.filter(t => t.status !== 'done' && t.task_type === 'task')
+  const allTasks = tasks.filter(t => t.task_type === 'task')
 
-  const overdue = active.filter(t => t.due_date && t.due_date < today)
-    .sort((a, b) => (a.due_date ?? '').localeCompare(b.due_date ?? ''))
+  function doneLast(a: Task, b: Task) {
+    return (a.status === 'done' ? 1 : 0) - (b.status === 'done' ? 1 : 0)
+  }
 
-  const todayTasks = active.filter(t => t.due_date === today)
+  const overdue = allTasks
+    .filter(t => t.due_date && t.due_date < today)
+    .sort((a, b) => doneLast(a, b) || (a.due_date ?? '').localeCompare(b.due_date ?? ''))
+
+  const todayTasks = allTasks
+    .filter(t => t.due_date === today)
+    .sort(doneLast)
 
   // Days remaining until next season
   const daysToNextSeason = nextSeasonStart
     ? Math.ceil((new Date(nextSeasonStart).getTime() - new Date().setHours(0,0,0,0)) / 86400000)
     : null
 
-  const weekTasks = active.filter(t => {
-    if (!t.due_date) {
-      if (t.reminder_days_before_season != null && daysToNextSeason != null) {
-        return t.reminder_days_before_season === daysToNextSeason
+  const weekTasks = allTasks
+    .filter(t => {
+      if (!t.due_date) {
+        if (t.reminder_days_before_season != null && daysToNextSeason != null) {
+          return t.reminder_days_before_season === daysToNextSeason
+        }
+        return false
       }
-      return false
-    }
-    return t.due_date > today && t.due_date <= d7ISO
-  })
+      return t.due_date > today && t.due_date <= d7ISO
+    })
+    .sort(doneLast)
 
-  const isEmpty = overdue.length === 0 && todayTasks.length === 0 && weekTasks.length === 0
+  const isEmpty = overdue.filter(t => t.status !== 'done').length === 0
+    && todayTasks.filter(t => t.status !== 'done').length === 0
+    && weekTasks.filter(t => t.status !== 'done').length === 0
 
   if (isEmpty) {
     return (
@@ -170,6 +184,7 @@ export function TabToday({ tasks, members, currentUserId, nextSeasonStart, onTog
         onDelete={onDelete}
         onInlineEdit={onInlineEdit}
         onQuickAdd={onQuickAdd}
+        onChecklistItemToggle={onChecklistItemToggle}
       />
       <TaskGroup
         title="להיום"
@@ -184,6 +199,7 @@ export function TabToday({ tasks, members, currentUserId, nextSeasonStart, onTog
         onDelete={onDelete}
         onInlineEdit={onInlineEdit}
         onQuickAdd={onQuickAdd}
+        onChecklistItemToggle={onChecklistItemToggle}
       />
       <TaskGroup
         title="השבוע הקרוב"
@@ -197,6 +213,7 @@ export function TabToday({ tasks, members, currentUserId, nextSeasonStart, onTog
         onDelete={onDelete}
         onInlineEdit={onInlineEdit}
         onQuickAdd={onQuickAdd}
+        onChecklistItemToggle={onChecklistItemToggle}
       />
     </div>
   )

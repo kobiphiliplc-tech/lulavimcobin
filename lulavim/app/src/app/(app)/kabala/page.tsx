@@ -6,10 +6,6 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useForm, Controller, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import {
-  useReactTable, getCoreRowModel, getSortedRowModel, getFilteredRowModel,
-  flexRender, type ColumnDef, type SortingState,
-} from '@tanstack/react-table'
 import { createClient } from '@/lib/supabase/client'
 import { useSeason } from '@/lib/context/SeasonContext'
 import { cn } from '@/lib/utils'
@@ -19,15 +15,13 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { toast } from 'sonner'
-import Link from 'next/link'
-import { Plus, Pencil, Trash2, ChevronUp, ChevronDown, CheckCircle2, X } from 'lucide-react'
+import { Plus, CheckCircle2, X } from 'lucide-react'
 import type { ReceivingOrder, Supplier, Field, FieldForecast, FreshnessType } from '@/lib/types'
 import { LENGTH_TYPES } from '@/lib/constants'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { KabalaTable } from '@/components/kabala/KabalaTable'
 
 function todayISO() {
   const d = new Date()
@@ -213,8 +207,6 @@ export default function KabalaPage() {
   const [freshnessDate,  setFreshnessDate]  = useState<string | null>(null)
   const [suggestedSerial,setSuggestedSerial]= useState<number>(9001)
   const [loading,        setLoading]        = useState(true)
-  const [globalFilter,   setGlobalFilter]   = useState('')
-  const [sorting,        setSorting]        = useState<SortingState>([{ id: 'received_date', desc: true }])
   const [dialogOpen,     setDialogOpen]     = useState(false)
   const [editing,        setEditing]        = useState<ReceivingOrder | undefined>()
   const [activeTab,      setActiveTab]      = useState<'list' | 'forecast'>('list')
@@ -478,90 +470,6 @@ export default function KabalaPage() {
     )
   }
 
-  // ─── Table columns ─────────────────────────────────────────────────────────
-
-  const columns: ColumnDef<ReceivingOrder>[] = [
-    {
-      accessorKey: 'serial_no', header: 'מס׳ קבלה',
-      cell: ({ getValue }) => <span className="font-mono font-semibold">{getValue<string>()}</span>,
-    },
-    {
-      accessorKey: 'warehouse_code', header: 'מח׳',
-      cell: ({ getValue }) => {
-        const v = getValue<string | null>()
-        return v ? <span className="font-mono text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{v}</span> : <span className="text-gray-300">—</span>
-      },
-    },
-    {
-      accessorKey: 'received_date', header: 'תאריך',
-      cell: ({ getValue }) => new Date(getValue<string>()).toLocaleDateString('he-IL'),
-    },
-    {
-      accessorKey: 'suppliers.name', header: 'ספק',
-      cell: ({ row }) => {
-        const sid = row.original.supplier_id
-        const name = row.original.suppliers?.name
-        if (!name) return '—'
-        return <Link href={`/suppliers?id=${sid}`} className="text-green-700 hover:underline">{name}</Link>
-      },
-    },
-    { accessorKey: 'fields.name',    header: 'שדה',   cell: ({ row }) => row.original.fields?.name ?? '—' },
-    { accessorKey: 'length_type',    header: 'אורך' },
-    { accessorKey: 'freshness_type', header: 'טריות' },
-    { accessorKey: 'total_quantity', header: 'כמות',  cell: ({ getValue }) => getValue<number>()?.toLocaleString() ?? '—' },
-    { accessorKey: 'returns_quantity', header: 'חזרות', cell: ({ getValue }) => (getValue<number>() || 0).toLocaleString() },
-    {
-      id: 'net_qty', header: 'סה״כ',
-      cell: ({ row }) => {
-        const net = Math.max(0, (row.original.total_quantity ?? 0) - row.original.returns_quantity)
-        return <span className="font-medium">{net.toLocaleString()}</span>
-      },
-    },
-    {
-      accessorKey: 'category', header: 'קטגוריה',
-      cell: ({ getValue }) => <span className="text-xs">{getValue<string>() ?? '—'}</span>,
-    },
-    {
-      id: 'sorting_status', header: 'סטטוס מיון',
-      cell: ({ row }) => {
-        const net = Math.max(0, (row.original.total_quantity ?? 0) - row.original.returns_quantity)
-        const st  = getSortingStatus(row.original, net)
-        return <span className={cn('text-xs px-2 py-0.5 rounded-full whitespace-nowrap', st.cls)}>{st.label}</span>
-      },
-    },
-    {
-      id: 'total_price_vat', header: 'סה״כ מחיר',
-      cell: ({ row }) => {
-        const tp   = row.original.total_price
-        const curr = row.original.order_currency ?? 'ILS'
-        const sym  = ({ ILS: '₪', USD: '$', EUR: '€', GBP: '£' } as Record<string, string>)[curr] ?? curr
-        return tp ? `${sym}${tp.toLocaleString('he-IL', { maximumFractionDigits: 0 })}` : '—'
-      },
-    },
-    {
-      id: 'actions', header: '',
-      cell: ({ row }) => (
-        <div className="flex gap-1 justify-end">
-          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(row.original)}>
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-          <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500 hover:text-red-700" onClick={() => handleDelete(row.original)}>
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      ),
-    },
-  ]
-
-  const table = useReactTable({
-    data: orders, columns,
-    state: { sorting, globalFilter },
-    onSortingChange: setSorting, onGlobalFilterChange: setGlobalFilter,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-  })
-
   // Sorting status for the editing order (shown in form)
   const editingNetQty = editing ? Math.max(0, (editing.total_quantity ?? 0) - editing.returns_quantity) : 0
   const editingSortingStatus = editing ? getSortingStatus(editing, editingNetQty) : null
@@ -606,62 +514,15 @@ export default function KabalaPage() {
               ))}
             </div>
 
-            <Input
-              placeholder="חיפוש לפי מס׳ קבלה, ספק, שדה..."
-              value={globalFilter}
-              onChange={e => setGlobalFilter(e.target.value)}
-              className="max-w-sm"
+            <KabalaTable
+              orders={orders}
+              suppliers={suppliers}
+              fields={fields}
+              sortingEvents={sortingEvents}
+              loading={loading}
+              onEdit={openEdit}
+              onDelete={handleDelete}
             />
-
-            <div className="rounded-lg border bg-white overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  {table.getHeaderGroups().map(hg => (
-                    <TableRow key={hg.id}>
-                      {hg.headers.map(h => (
-                        <TableHead key={h.id} className="text-right cursor-pointer whitespace-nowrap"
-                          onClick={h.column.getToggleSortingHandler()}>
-                          <span className="flex items-center gap-1">
-                            {flexRender(h.column.columnDef.header, h.getContext())}
-                            {h.column.getIsSorted() === 'asc'  && <ChevronUp   className="h-3 w-3" />}
-                            {h.column.getIsSorted() === 'desc' && <ChevronDown className="h-3 w-3" />}
-                          </span>
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableHeader>
-                <TableBody>
-                  {loading ? (
-                    Array.from({ length: 4 }).map((_, i) => (
-                      <TableRow key={i}>
-                        {columns.map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}
-                      </TableRow>
-                    ))
-                  ) : table.getRowModel().rows.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={columns.length} className="text-center py-12 text-gray-400">
-                        {globalFilter ? 'לא נמצאו תוצאות' : `אין קבלות בעונה ${activeSeason} — לחץ על "קבלה חדשה"`}
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    table.getRowModel().rows.map(row => {
-                      const o = row.original
-                      const isMissingData = !o.field_id || !o.total_price || o.total_price === 0
-                      return (
-                        <TableRow key={row.id} className={cn('hover:bg-gray-50', isMissingData && 'bg-yellow-50 hover:bg-yellow-100')}>
-                          {row.getVisibleCells().map(cell => (
-                            <TableCell key={cell.id} className="text-right py-2 whitespace-nowrap">
-                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                            </TableCell>
-                          ))}
-                        </TableRow>
-                      )
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            </div>
           </div>
         </TabsContent>
 

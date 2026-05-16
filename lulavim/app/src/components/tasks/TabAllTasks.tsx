@@ -14,6 +14,7 @@ interface Props {
   onEdit: (task: Task) => void
   onDelete: (id: string) => void
   onInlineEdit: (id: string, title: string) => void
+  onChecklistItemToggle?: (task: Task, itemId: string) => void
 }
 
 type FilterPill = 'all' | 'open' | 'mine' | 'urgent' | 'next'
@@ -29,7 +30,7 @@ const pillLabels: Record<FilterPill, string> = {
   all: 'הכל', open: 'פתוחות', mine: 'שלי', urgent: 'דחוף', next: 'עונה הבאה',
 }
 
-export function TabAllTasks({ tasks, members, currentUserId, onToggleStatus, onEdit, onDelete, onInlineEdit }: Props) {
+export function TabAllTasks({ tasks, members, currentUserId, onToggleStatus, onEdit, onDelete, onInlineEdit, onChecklistItemToggle }: Props) {
   const [pill, setPill] = useState<FilterPill>('all')
   const [sortBy, setSortBy] = useState<SortBy>('date')
   const [filters, setFilters] = useState<Filters>({ season: 'all', entity: 'all', member: 'all' })
@@ -49,10 +50,15 @@ export function TabAllTasks({ tasks, members, currentUserId, onToggleStatus, onE
     if (filters.entity !== 'all') list = list.filter(t => t.linked_entity_type === filters.entity)
     if (filters.member !== 'all') list = list.filter(t => t.assigned_to_member_id === Number(filters.member))
 
-    // sort
-    if (sortBy === 'date') list = [...list].sort((a, b) => (a.due_date ?? 'z').localeCompare(b.due_date ?? 'z'))
-    if (sortBy === 'priority') list = [...list].sort((a, b) => (a.priority === 'urgent' ? -1 : 1) - (b.priority === 'urgent' ? -1 : 1))
-    if (sortBy === 'entity') list = [...list].sort((a, b) => (a.linked_entity_type ?? 'z').localeCompare(b.linked_entity_type ?? 'z'))
+    // sort: done always last, then by chosen criterion
+    list = [...list].sort((a, b) => {
+      const doneDiff = (a.status === 'done' ? 1 : 0) - (b.status === 'done' ? 1 : 0)
+      if (doneDiff !== 0) return doneDiff
+      if (sortBy === 'date') return (a.due_date ?? 'z').localeCompare(b.due_date ?? 'z')
+      if (sortBy === 'priority') return (a.priority === 'urgent' ? -1 : 1) - (b.priority === 'urgent' ? -1 : 1)
+      if (sortBy === 'entity') return (a.linked_entity_type ?? 'z').localeCompare(b.linked_entity_type ?? 'z')
+      return 0
+    })
 
     return list
   }, [tasks, pill, filters, sortBy, currentUserId])
@@ -198,6 +204,7 @@ export function TabAllTasks({ tasks, members, currentUserId, onToggleStatus, onE
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onInlineEdit={onInlineEdit}
+                onChecklistItemToggle={onChecklistItemToggle}
               />
             ))}
           </div>

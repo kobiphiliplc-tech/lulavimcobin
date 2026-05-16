@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react'
 import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
+import { parseChecklist, serializeChecklist } from '@/lib/checklist'
 import { useSeason } from '@/lib/context/SeasonContext'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -160,6 +161,21 @@ function TasksInner() {
     setTasks(prev => [data as Task, ...prev])
   }
 
+  async function handleChecklistItemToggle(task: Task, itemId: string) {
+    const items = parseChecklist(task.description)
+    const toggled = items.map(i => i.id === itemId ? { ...i, checked: !i.checked } : i)
+    const sorted = [...toggled.filter(i => !i.checked), ...toggled.filter(i => i.checked)]
+    const newDescription = serializeChecklist(sorted)
+    const { data, error } = await supabase
+      .from('tasks')
+      .update({ description: newDescription })
+      .eq('id', task.id)
+      .select()
+      .single()
+    if (error) { toast.error('שגיאה בעדכון'); return }
+    setTasks(prev => prev.map(t => t.id === task.id ? data as Task : t))
+  }
+
   async function handleSaveNote(id: string, title: string, description: string) {
     const { data, error } = await supabase
       .from('tasks')
@@ -247,6 +263,7 @@ function TasksInner() {
                 onDelete={handleDelete}
                 onInlineEdit={handleInlineEdit}
                 onQuickAdd={handleQuickAdd}
+                onChecklistItemToggle={handleChecklistItemToggle}
               />
             </TabsContent>
 
@@ -259,6 +276,7 @@ function TasksInner() {
                 onEdit={openEdit}
                 onDelete={handleDelete}
                 onInlineEdit={handleInlineEdit}
+                onChecklistItemToggle={handleChecklistItemToggle}
               />
             </TabsContent>
 

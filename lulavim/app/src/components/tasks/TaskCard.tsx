@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { Circle, CheckCircle2, Clock, RotateCcw, Lock, ExternalLink, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Task, TeamMember } from '@/lib/types'
+import { isChecklist, parseChecklist, checklistProgress } from '@/lib/checklist'
+import { TaskDetailsDialog } from './TaskDetailsDialog'
 
 interface Props {
   task: Task
@@ -15,6 +17,7 @@ interface Props {
   onDelete: (id: string) => void
   onInlineEdit?: (id: string, title: string) => void
   borderColor?: 'red' | 'orange' | 'blue' | 'none'
+  onChecklistItemToggle?: (task: Task, itemId: string) => void
 }
 
 const ENTITY_COLORS: Record<string, string> = {
@@ -42,14 +45,8 @@ const BORDER_CLASSES: Record<string, string> = {
   none:   '',
 }
 
-export function TaskCard({ task, members, currentUserId, onToggleStatus, onEdit, onDelete, onInlineEdit, borderColor = 'none' }: Props) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(task.title)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    if (editing) inputRef.current?.focus()
-  }, [editing])
+export function TaskCard({ task, members, currentUserId, onToggleStatus, onEdit, onDelete, borderColor = 'none', onChecklistItemToggle }: Props) {
+  const [showDetails, setShowDetails] = useState(false)
 
   const member = members.find(m => m.id === task.assigned_to_member_id)
   const initials = member?.name.split(' ').map(w => w[0]).join('').slice(0, 2) ?? ''
@@ -59,36 +56,28 @@ export function TaskCard({ task, members, currentUserId, onToggleStatus, onEdit,
 
   if (isPrivateAndNotMine) return null
 
-  function handleTitleClick() {
-    setDraft(task.title)
-    setEditing(true)
-  }
-
-  function commitEdit() {
-    const trimmed = draft.trim()
-    if (trimmed && trimmed !== task.title && onInlineEdit) {
-      onInlineEdit(task.id, trimmed)
-    }
-    setEditing(false)
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter') commitEdit()
-    if (e.key === 'Escape') setEditing(false)
-  }
-
   return (
+    <>
+    <TaskDetailsDialog
+      task={task}
+      members={members}
+      open={showDetails}
+      onClose={() => setShowDetails(false)}
+      onEdit={() => onEdit(task)}
+      onChecklistItemToggle={onChecklistItemToggle ? (itemId) => onChecklistItemToggle(task, itemId) : undefined}
+    />
     <div
       className={cn(
-        'bg-white rounded-lg border border-gray-200 px-4 py-3 flex gap-3 items-start group hover:shadow-sm transition-shadow',
+        'bg-white rounded-lg border border-gray-200 px-4 py-3 flex gap-3 items-start group hover:shadow-sm transition-shadow cursor-pointer',
         BORDER_CLASSES[borderColor],
         isDone && 'opacity-60'
       )}
+      onClick={() => setShowDetails(true)}
     >
       {/* Status toggle */}
       <button
         type="button"
-        onClick={() => onToggleStatus(task)}
+        onClick={e => { e.stopPropagation(); onToggleStatus(task) }}
         className="mt-0.5 flex-shrink-0 text-gray-400 hover:text-green-600 transition-colors"
         title={isDone ? 'סמן כפתוח' : 'סמן כהושלם'}
       >
@@ -104,29 +93,17 @@ export function TaskCard({ task, members, currentUserId, onToggleStatus, onEdit,
       <div className="flex-1 min-w-0">
         {/* Title row */}
         <div className="flex items-start gap-2">
-          {editing ? (
-            <input
-              ref={inputRef}
-              value={draft}
-              onChange={e => setDraft(e.target.value)}
-              onBlur={commitEdit}
-              onKeyDown={handleKeyDown}
-              className="flex-1 text-sm font-medium border-b border-green-500 outline-none bg-transparent"
-            />
-          ) : (
-            <span
-              onClick={handleTitleClick}
-              className={cn(
-                'flex-1 text-sm font-medium cursor-text hover:text-green-700 transition-colors',
-                isDone && 'line-through text-gray-400'
-              )}
-            >
-              {task.priority === 'urgent' && !isDone && (
-                <AlertTriangle className="inline h-3.5 w-3.5 text-red-500 ml-1 mb-0.5" />
-              )}
-              {task.title}
-            </span>
-          )}
+          <span
+            className={cn(
+              'flex-1 text-sm font-medium hover:text-green-700 transition-colors',
+              isDone && 'line-through text-gray-400'
+            )}
+          >
+            {task.priority === 'urgent' && !isDone && (
+              <AlertTriangle className="inline h-3.5 w-3.5 text-red-500 ml-1 mb-0.5" />
+            )}
+            {task.title}
+          </span>
 
           {/* Avatar */}
           {member && (
@@ -148,6 +125,7 @@ export function TaskCard({ task, members, currentUserId, onToggleStatus, onEdit,
           {task.linked_entity_type === 'screen_record' && task.linked_deep_link_path && (
             <Link
               href={task.linked_deep_link_path}
+              onClick={e => e.stopPropagation()}
               className="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 flex items-center gap-1"
               title={task.linked_record_label ?? ''}
             >
@@ -181,9 +159,24 @@ export function TaskCard({ task, members, currentUserId, onToggleStatus, onEdit,
         </div>
 
         {/* Description preview */}
-        {task.description && !isDone && (
-          <p className="text-xs text-gray-400 mt-1 line-clamp-1">{task.description}</p>
-        )}
+        {task.description && !isDone && (() => {
+          if (isChecklist(task.description)) {
+            const progress = checklistProgress(task.description)!
+            const unchecked = parseChecklist(task.description).filter(i => !i.checked).slice(0, 2)
+            return (
+              <div className="mt-1 space-y-0.5">
+                <span className="text-xs text-gray-400">{progress.done}/{progress.total} הושלמו</span>
+                {unchecked.map(item => (
+                  <p key={item.id} className="text-xs text-gray-400 flex items-center gap-1 line-clamp-1">
+                    <span className="inline-block w-3 h-3 rounded-sm border border-gray-300 flex-shrink-0" />
+                    {item.text}
+                  </p>
+                ))}
+              </div>
+            )
+          }
+          return <p className="text-xs text-gray-400 mt-1 line-clamp-1">{task.description}</p>
+        })()}
       </div>
 
       {/* Date + actions */}
@@ -194,10 +187,11 @@ export function TaskCard({ task, members, currentUserId, onToggleStatus, onEdit,
         {task.due_time && <span>{task.due_time}</span>}
 
         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button type="button" onClick={() => onEdit(task)} className="text-gray-400 hover:text-blue-600 text-xs">עריכה</button>
-          <button type="button" onClick={() => onDelete(task.id)} className="text-gray-400 hover:text-red-500 text-xs">מחק</button>
+          <button type="button" onClick={e => { e.stopPropagation(); onEdit(task) }} className="text-gray-400 hover:text-blue-600 text-xs">עריכה</button>
+          <button type="button" onClick={e => { e.stopPropagation(); onDelete(task.id) }} className="text-gray-400 hover:text-red-500 text-xs">מחק</button>
         </div>
       </div>
     </div>
+    </>
   )
 }

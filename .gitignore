@@ -7,8 +7,8 @@ node_modules/
 .env*.local
 
 # Next.js
-app/.next/
-app/out/
+lulavim/app/.next/
+lulavim/app/out/
 
 # Build outputs
 dist/
@@ -25,8 +25,9 @@ Thumbs.db
 *.njsproj
 *.sln
 
-# Personal notes / Obsidian vault
-vault/
+# Obsidian vault
+lulavim/vault/
 
-# Claude Code worktrees (embedded git repos)
-.claude/worktrees/
+# Claude Code local settings and worktrees
+.claude/
+lulavim/.claude/
