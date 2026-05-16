@@ -82,15 +82,27 @@ export const db = new LulabDB()
 // ─── Pending Actions ──────────────────────────────────────────────────────────
 
 export async function queueAction(action: Omit<OfflineAction, 'id' | 'createdAt' | 'synced'>) {
-  await db.offlineActions.add({ ...action, createdAt: Date.now(), synced: false })
+  try {
+    await db.offlineActions.add({ ...action, createdAt: Date.now(), synced: false })
+  } catch (err) {
+    console.warn('[offline] queueAction failed — IndexedDB unavailable', err)
+  }
 }
 
 export async function getPendingActions() {
-  return db.offlineActions.where('synced').equals(0).toArray()
+  try {
+    return db.offlineActions.where('synced').equals(0).toArray()
+  } catch {
+    return []
+  }
 }
 
 export async function markSynced(id: number) {
-  await db.offlineActions.update(id, { synced: true })
+  try {
+    await db.offlineActions.update(id, { synced: true })
+  } catch (err) {
+    console.warn('[offline] markSynced failed', err)
+  }
 }
 
 // ─── Cache Operations ─────────────────────────────────────────────────────────
@@ -100,37 +112,53 @@ export async function cacheRows(
   rows: Record<string, unknown>[],
   season?: string
 ): Promise<void> {
-  const t = db.table(table)
-  if (season) {
-    await t.where('season').equals(season).delete()
-  } else {
-    await t.clear()
+  try {
+    const t = db.table(table)
+    if (season) {
+      await t.where('season').equals(season).delete()
+    } else {
+      await t.clear()
+    }
+    const stamped = rows.map(r => ({ ...r, _cached_at: Date.now() }))
+    await t.bulkPut(stamped)
+  } catch (err) {
+    console.warn('[offline] cacheRows failed — IndexedDB unavailable', err)
   }
-  const stamped = rows.map(r => ({ ...r, _cached_at: Date.now() }))
-  await t.bulkPut(stamped)
 }
 
 export async function getCachedRows(
   table: CacheTable,
   season?: string
 ): Promise<Record<string, unknown>[]> {
-  const t = db.table(table)
-  if (season) {
-    return t.where('season').equals(season).toArray()
+  try {
+    const t = db.table(table)
+    if (season) {
+      return t.where('season').equals(season).toArray()
+    }
+    return t.toArray()
+  } catch {
+    return []
   }
-  return t.toArray()
 }
 
 export async function upsertCachedRow(
   table: CacheTable,
   row: Record<string, unknown>
 ): Promise<void> {
-  await db.table(table).put({ ...row, _cached_at: Date.now() })
+  try {
+    await db.table(table).put({ ...row, _cached_at: Date.now() })
+  } catch (err) {
+    console.warn('[offline] upsertCachedRow failed', err)
+  }
 }
 
 export async function removeCachedRow(
   table: CacheTable,
   id: number | string
 ): Promise<void> {
-  await db.table(table).delete(id)
+  try {
+    await db.table(table).delete(id)
+  } catch (err) {
+    console.warn('[offline] removeCachedRow failed', err)
+  }
 }

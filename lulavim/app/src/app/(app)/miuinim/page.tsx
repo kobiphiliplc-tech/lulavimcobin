@@ -460,7 +460,7 @@ export default function MiuinimPage() {
   }, [supabase, activeSeason])
 
   useEffect(() => {
-    loadFromCache().then(() => fetchAll())
+    loadFromCache().catch(console.warn).then(() => fetchAll())
   }, [loadFromCache, fetchAll])
 
   useEffect(() => {
